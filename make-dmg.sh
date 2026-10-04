@@ -92,6 +92,9 @@ cl_dynamiccrosshair "0"
 
 // scale the HUD as if the screen were 1280 wide (no effect at or below 1280)
 hud_scale "1280"
+
+// keep the plain nickname on GoldSrc servers (the "[Xash3D]" prefix breaks name-based admin)
+cl_advertise_engine_in_name "0"
 EOF
 
 # Console on F1 (key left of 1 is § on ISO keyboards)
