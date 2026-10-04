@@ -32,6 +32,11 @@ PKG_CONFIG_PATH="$DEPS/lib/pkgconfig" ./waf configure -o build-dist -T release -
 ./waf -o build-dist install --destdir="$PAYLOAD"
 
 # --- CS16Client ---
+# local fixes (see patches/), applied once
+for p in "$ROOT"/patches/mainui_cpp-*.patch; do
+  M="$SRC/cs16-client/3rdparty/mainui_cpp"
+  git -C "$M" apply --reverse --check "$p" 2>/dev/null || git -C "$M" apply "$p"
+done
 cmake -S "$SRC/cs16-client" -B "$SRC/cs16-client/build-dist" -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_OSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET -DCMAKE_INSTALL_PREFIX="$PAYLOAD"
 cmake --build "$SRC/cs16-client/build-dist" -j8
@@ -95,6 +100,13 @@ hud_scale "1280"
 
 // keep the plain nickname on GoldSrc servers (the "[Xash3D]" prefix breaks name-based admin)
 cl_advertise_engine_in_name "0"
+
+// match 100-tick servers (engine caps: updaterate 102, cmdrate 100)
+cl_updaterate "101"
+cl_cmdrate "100"
+rate "100000"
+ex_interp "0.01"
+fps_max "200"
 EOF
 
 # Console on F1 (key left of 1 is § on ISO keyboards)

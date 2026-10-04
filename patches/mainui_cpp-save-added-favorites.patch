@@ -1,0 +1,13 @@
+diff --git a/menus/ServerBrowser.cpp b/menus/ServerBrowser.cpp
+index f7644af..fee8b17 100644
+--- a/menus/ServerBrowser.cpp
++++ b/menus/ServerBrowser.cpp
+@@ -1081,7 +1081,7 @@ void CMenuServerBrowser::AddServer( void )
+ 		}
+ 	}
+ 
+-	favlist_entry_t entry( addressField.GetBuffer(), proto, false );
++	favlist_entry_t entry( addressField.GetBuffer(), proto, true ); // false was never saved (SaveServerListToFile skips it)
+ 	favoritesList.AddToTail( entry );
+ 
+ 	int previousTab = tabSwitch.GetState();
