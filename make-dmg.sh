@@ -64,13 +64,35 @@ fi
 
 # Valve game data from the local Steam install. --ignore-existing keeps our arm64 builds of anything
 # both provide; Valve's own x86/Windows/Linux game binaries are dropped since they can't be used here.
+# Falls back to the dev build's copy when Counter-Strike is no longer installed in Steam.
 STEAM_HL="${STEAM_HL:-$HOME/Library/Application Support/Steam/steamapps/common/Half-Life}"
-[ -d "$STEAM_HL/cstrike" ] || { echo "ERROR: no Counter-Strike data at $STEAM_HL"; exit 1; }
+[ -f "$STEAM_HL/valve/halflife.wad" ] || STEAM_HL="$ROOT/xash-build"
+[ -f "$STEAM_HL/valve/halflife.wad" ] && [ -f "$STEAM_HL/cstrike/liblist.gam" ] \
+  || { echo "ERROR: no complete valve/cstrike data in Steam or $ROOT/xash-build"; exit 1; }
+echo "Game data from: $STEAM_HL"
 for mod in valve cstrike; do
+  # also skip per-machine state the engine writes (only present in the xash-build fallback)
   rsync -a --ignore-existing --exclude '*.dll' --exclude '*.so' \
     --exclude 'dlls/*.dylib' --exclude 'cl_dlls/*.dylib' \
+    --exclude '*.bak' --exclude 'logs/' --exclude '.xash_id' --exclude 'console_history.txt' \
+    --exclude 'history_servers.lst' --exclude 'opengl.cfg' --exclude 'video.cfg' --exclude 'vfs.cfg' \
+    --exclude 'voice_ban.dt' --exclude 'userconfig.cfg' \
     "$STEAM_HL/$mod/" "$PAYLOAD/$mod/"
 done
+
+# First-run defaults: the engine only falls back to this bundled config.cfg until it writes the
+# player's own into Application Support, so these never override later changes.
+cat >> "$PAYLOAD/cstrike/config.cfg" <<'EOF'
+
+// CS16Client static crosshair
+xhair_enable "1"
+xhair_dynamic_scale "0"
+xhair_dynamic_move "0"
+cl_dynamiccrosshair "0"
+
+// scale the HUD as if the screen were 1280 wide (no effect at or below 1280)
+hud_scale "1280"
+EOF
 
 # Console on F1 (key left of 1 is § on ISO keyboards)
 echo 'bind "F1" "toggleconsole"' > cstrike/userconfig.cfg
