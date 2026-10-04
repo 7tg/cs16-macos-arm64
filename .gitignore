@@ -1,0 +1,5 @@
+# build output (rebuild with ./make-dmg.sh)
+dist/
+xash-build/
+*.log
+.DS_Store
