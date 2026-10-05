@@ -1,5 +1,7 @@
 # CS 1.6 on Apple Silicon (native arm64)
 
+[![Build DMG](https://github.com/7tg/cs16-macos-arm64/actions/workflows/build-dmg.yml/badge.svg)](https://github.com/7tg/cs16-macos-arm64/actions/workflows/build-dmg.yml)
+
 Counter-Strike 1.6 running natively on M-series Macs, without Rosetta or Wine, via
 [Xash3D FWGS](https://github.com/FWGS/xash3d-fwgs) (engine) + [CS16Client](https://github.com/Velaron/cs16-client)
 (reverse-engineered client, ReGameDLL server code, YaPB bots).
