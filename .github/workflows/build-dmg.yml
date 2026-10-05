@@ -1,0 +1,50 @@
+name: Build DMG
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the DMG to releases on tag pushes
+
+jobs:
+  build:
+    # Pinned: bundled Homebrew dylibs (freetype, libpng) inherit the runner's macOS as their minimum,
+    # and the app targets macOS 15. make-dmg.sh fails if anything requires newer.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: brew install cmake pkgconf freetype libpng
+
+      - name: Build public DMG (no Valve data)
+        run: ./make-dmg.sh
+
+      - name: Verify no Valve game data is bundled
+        run: |
+          GAME="dist/stage/CS 1.6.app/Contents/Resources/game"
+          find "$GAME" -type f | sed "s|$GAME/||" | sort
+          if find "$GAME" -type f | grep -vE '\.dylib$|/xash3d$|/extras\.pk3$|/userconfig\.cfg$'; then
+            echo "::error::unexpected files in the app (see above)"; exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CS16-dmg
+          path: dist/CS16.dmg
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "CS 1.6 for Apple Silicon $GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/CS16.dmg --clobber

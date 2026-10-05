@@ -80,6 +80,14 @@ if otool -L xash3d *.dylib cstrike/cl_dlls/*.dylib cstrike/dlls/*.dylib | grep -
   echo "ERROR: unbundled dependency left (see above)"; exit 1
 fi
 
+# ...or requires a newer macOS than we claim (Homebrew bottles follow the build host's macOS)
+for f in xash3d *.dylib cstrike/cl_dlls/*.dylib cstrike/dlls/*.dylib; do
+  minos=$(otool -l "$f" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit}')
+  if [ "$(printf '%s\n%s\n' "$minos" "$MACOSX_DEPLOYMENT_TARGET" | sort -V | tail -1)" != "$MACOSX_DEPLOYMENT_TARGET" ]; then
+    echo "ERROR: $f requires macOS $minos (> $MACOSX_DEPLOYMENT_TARGET)"; exit 1
+  fi
+done
+
 # Console on F1 (key left of 1 is § on ISO keyboards)
 echo 'bind "F1" "toggleconsole"' > cstrike/userconfig.cfg
 
@@ -226,5 +234,10 @@ codesign -f -s - "$APP"
 # --- DMG ---
 ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
-hdiutil create -volname "CS 1.6" -srcfolder "$STAGE" -format UDZO -ov "$DMG"
+# hdiutil occasionally fails with "Resource busy" on CI runners
+for attempt in 1 2 3; do
+  hdiutil create -volname "CS 1.6" -srcfolder "$STAGE" -format UDZO -ov "$DMG" && break
+  [ $attempt = 3 ] && exit 1
+  sleep 5
+done
 echo "Built: $DMG"
