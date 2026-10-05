@@ -95,3 +95,7 @@ HL25 build lacks `SteamGameServer_Init`.
   Builds made with `--with-game-data` contain that content and are for personal use only.
 - The engine, client and libraries are third-party open-source projects (see each submodule's license). Released
   binaries are built from the pinned submodule commits plus `patches/`.
+
+## License
+The scripts, patches and docs in this repository are licensed under the [GNU GPL v3](LICENSE). The submodules keep
+their own licenses, and Counter-Strike and Half-Life content remains Valve's.
