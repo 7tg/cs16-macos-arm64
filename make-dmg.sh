@@ -39,6 +39,10 @@ if [ ! -f "$DEPS/lib/libSDL3.0.dylib" ]; then
 fi
 
 # --- Engine (SDL3 backend) ---
+# local fixes (see patches/), applied once
+for p in "$ROOT"/patches/xash3d-fwgs-*.patch; do
+  git -C "$SRC/xash3d-fwgs" apply --reverse --check "$p" 2>/dev/null || git -C "$SRC/xash3d-fwgs" apply "$p"
+done
 cd "$SRC/xash3d-fwgs"
 PKG_CONFIG_PATH="$DEPS/lib/pkgconfig" ./waf configure -o build-dist -T release --64bits -3 --sdl-use-pkgconfig --prefix=/
 ./waf -o build-dist build
@@ -59,6 +63,10 @@ cmake --install "$SRC/cs16-client/build-dist"
 cd "$PAYLOAD"
 cp "$DEPS/lib/libSDL3.0.dylib" .
 cp /opt/homebrew/opt/freetype/lib/libfreetype.6.dylib /opt/homebrew/opt/libpng/lib/libpng16.16.dylib .
+# The engine links Homebrew's opusfile/vorbis when they are installed; bundle them (and their deps) too
+for lib in opusfile/lib/libopusfile.0 opus/lib/libopus.0 libvorbis/lib/libvorbis.0 libvorbis/lib/libvorbisfile.3 libogg/lib/libogg.0; do
+  [ -f "/opt/homebrew/opt/$lib.dylib" ] && cp "/opt/homebrew/opt/$lib.dylib" .
+done
 chmod u+w *.dylib
 
 relink() { # file old new
@@ -179,6 +187,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
   <key>LSMinimumSystemVersion</key><string>$MACOSX_DEPLOYMENT_TARGET</string>
   <key>LSArchitecturePriority</key><array><string>arm64</string></array>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSMicrophoneUsageDescription</key><string>CS 1.6 uses the microphone for in-game voice chat.</string>
 </dict></plist>
 EOF
 
@@ -220,6 +229,9 @@ fi
 # The engine chdirs to XASH3D_BASEDIR and the CS server DLL dlopens filesystem_stdio from the cwd;
 # without it the game crashes on map load. Refresh every launch since the app may have moved.
 ln -sf "$GAME/filesystem_stdio.dylib" "$DATA/filesystem_stdio.dylib"
+
+# Optional: put a part of a monitor's name in $DATA/display.txt to open the game on that monitor
+[ -f "$DATA/display.txt" ] && export XASH3D_DISPLAY="$(head -1 "$DATA/display.txt")"
 
 cd "$GAME"
 export XASH3D_BASEDIR="$DATA" XASH3D_RODIR="$GAME"

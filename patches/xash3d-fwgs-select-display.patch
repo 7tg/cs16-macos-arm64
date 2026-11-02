@@ -1,0 +1,112 @@
+diff --git a/engine/platform/sdl3/vid_sdl3.c b/engine/platform/sdl3/vid_sdl3.c
+index 54b98456..332abe1d 100644
+--- a/engine/platform/sdl3/vid_sdl3.c
++++ b/engine/platform/sdl3/vid_sdl3.c
+@@ -131,7 +131,23 @@ static SDL_Window *VID_CreateWindowWithSafeGL( const char *title, SDL_Rect *rect
+ 		// choose attributes with select safegl level
+ 		GL_SetupAttributes( glw_state.safe );
+ 
+-		SDL_Window *hWnd = SDL_CreateWindow( title, rect->w, rect->h, flags );
++		// SDL_CreateWindow can't take a position; properties let us open on a chosen monitor
++		SDL_PropertiesID props = SDL_CreateProperties();
++
++		SDL_SetStringProperty( props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, title );
++		SDL_SetNumberProperty( props, SDL_PROP_WINDOW_CREATE_X_NUMBER, rect->x );
++		SDL_SetNumberProperty( props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, rect->y );
++		SDL_SetNumberProperty( props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, rect->w );
++		SDL_SetNumberProperty( props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, rect->h );
++		SDL_SetBooleanProperty( props, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, FBitSet( flags, SDL_WINDOW_RESIZABLE ));
++		SDL_SetBooleanProperty( props, SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN, FBitSet( flags, SDL_WINDOW_OPENGL ));
++		SDL_SetBooleanProperty( props, SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, FBitSet( flags, SDL_WINDOW_FULLSCREEN ));
++		SDL_SetBooleanProperty( props, SDL_PROP_WINDOW_CREATE_MAXIMIZED_BOOLEAN, FBitSet( flags, SDL_WINDOW_MAXIMIZED ));
++		SDL_SetBooleanProperty( props, SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, FBitSet( flags, SDL_WINDOW_HIGH_PIXEL_DENSITY ));
++
++		SDL_Window *hWnd = SDL_CreateWindowWithProperties( props );
++
++		SDL_DestroyProperties( props );
+ 
+ 		// stop if window creation was successful
+ 		if( hWnd )
+@@ -163,6 +179,34 @@ void VID_SaveWindowSize( int width, int height )
+ 	R_SaveVideoMode( width, height, render_w, render_h, maximized );
+ }
+ 
++// XASH3D_DISPLAY=<part of display name> picks the monitor for the initial window (default: primary)
++static SDL_DisplayID VID_GetTargetDisplay( void )
++{
++	const char *want = SDL_getenv( "XASH3D_DISPLAY" );
++
++	if( want && *want )
++	{
++		SDL_DisplayID found = 0;
++		int           count = 0;
++		SDL_DisplayID *ids = SDL_GetDisplays( &count );
++
++		for( int i = 0; ids && i < count && !found; i++ )
++		{
++			const char *name = SDL_GetDisplayName( ids[i] );
++
++			if( name && SDL_strcasestr( name, want ))
++				found = ids[i];
++		}
++
++		SDL_free( ids );
++
++		if( found )
++			return found;
++	}
++
++	return SDL_GetPrimaryDisplay();
++}
++
+ static qboolean VID_CreateWindow( const int input_width, const int input_height, window_mode_t window_mode )
+ {
+ 	SDL_Rect rect = { SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, input_width, input_height };
+@@ -182,14 +226,22 @@ static qboolean VID_CreateWindow( const int input_width, const int input_height,
+ 	// probe true fullscreen first, if it fails, try borderless next
+ 	if( window_mode == WINDOW_MODE_FULLSCREEN )
+ 	{
+-		SDL_DisplayID   display = SDL_GetPrimaryDisplay();
++		SDL_DisplayID   display = VID_GetTargetDisplay();
+ 
+ 		SDL_DisplayMode dm;
+ 		if( SDL_GetClosestFullscreenDisplayMode( display, rect.w, rect.h, 0.0f, true, &dm ))
+ 		{
++			SDL_Rect bounds;
++
+ 			SetBits( flags, SDL_WINDOW_FULLSCREEN );
+ 			rect.w = dm.w;
+ 			rect.h = dm.h;
++
++			if( SDL_GetDisplayBounds( display, &bounds ))
++			{
++				rect.x = bounds.x;
++				rect.y = bounds.y;
++			}
+ 		}
+ 		else
+ 		{
+@@ -202,14 +254,22 @@ static qboolean VID_CreateWindow( const int input_width, const int input_height,
+ 	// try borderless mode
+ 	if( window_mode == WINDOW_MODE_BORDERLESS )
+ 	{
+-		SDL_DisplayID display = SDL_GetPrimaryDisplay();
++		SDL_DisplayID display = VID_GetTargetDisplay();
+ 		const SDL_DisplayMode *dm = SDL_GetDesktopDisplayMode( display );
+ 
+ 		if( dm )
+ 		{
++			SDL_Rect bounds;
++
+ 			SetBits( flags, SDL_WINDOW_FULLSCREEN );
+ 			rect.w = dm->w;
+ 			rect.h = dm->h;
++
++			if( SDL_GetDisplayBounds( display, &bounds ))
++			{
++				rect.x = bounds.x;
++				rect.y = bounds.y;
++			}
+ 		}
+ 		else
+ 		{

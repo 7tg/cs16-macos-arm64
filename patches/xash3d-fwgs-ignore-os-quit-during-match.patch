@@ -1,0 +1,17 @@
+diff --git a/engine/platform/sdl3/host_sdl3.c b/engine/platform/sdl3/host_sdl3.c
+index 063e9f12..0f7a6b89 100644
+--- a/engine/platform/sdl3/host_sdl3.c
++++ b/engine/platform/sdl3/host_sdl3.c
+@@ -270,6 +270,12 @@ static void SDLash_EventHandler( const SDL_Event *ev )
+ 	switch( ev->type )
+ 	{
+ 	case SDL_EVENT_QUIT:
++		// Cmd+Q is easy to hit by accident while playing; use the menu, F10 or "quit" to leave a match
++		if( cls.state == ca_active && cls.key_dest == key_game )
++		{
++			Con_Printf( "Ignored OS quit request during a match (use the menu or the quit command)\n" );
++			break;
++		}
+ 		CL_RequestQuit( "caught SDL_EVENT_QUIT" );
+ 		break;
+ 	// TODO: use SDL_AddEventWatch

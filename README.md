@@ -84,6 +84,13 @@ What the script does:
 ## Patches
 - `mainui_cpp-save-added-favorites.patch`: servers added with **Add server** were created with `favorited = false`,
   which `SaveServerListToFile` skips, so they never reached `favorite_servers.lst`.
+- `xash3d-fwgs-select-display.patch`: the window is created on the display named by `XASH3D_DISPLAY` (part of the
+  monitor name). The launcher sets it from `~/Library/Application Support/CS16/display.txt` when that file exists.
+- `xash3d-fwgs-keep-mouse-grab-after-focus-loss.patch`: SDL drops the mouse grab when the window loses focus, but
+  the engine kept its cached "grabbed" state, so after Cmd-Tab the cursor could leak to another monitor.
+- `xash3d-fwgs-ignore-os-quit-during-match.patch`: Cmd+Q during a match is ignored (use the menu or `quit`).
+- `xash3d-fwgs-steam-silk-voice.patch`: decodes the SILK voice data sent by Steam clients (the engine only handled
+  Opus). Bundles the decoder part of Skype's SILK SDK (BSD-style licence, in each source file header).
 
 ## Playing on Steam-only servers
 Xash can't produce Steam auth tickets, so stock HLDS servers reject it ("Steam validation"). The companion server

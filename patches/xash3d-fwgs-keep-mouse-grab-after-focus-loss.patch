@@ -1,0 +1,33 @@
+diff --git a/engine/platform/sdl3/host_sdl3.c b/engine/platform/sdl3/host_sdl3.c
+index 063e9f12..0f7a6b89 100644
+--- a/engine/platform/sdl3/host_sdl3.c
++++ b/engine/platform/sdl3/host_sdl3.c
+@@ -35,10 +35,10 @@ static void SDLash_ActiveEvent( qboolean focus )
+ 		host.status = HOST_NOFOCUS;
+ 
+ 		if( cls.key_dest == key_game )
+-		{
+ 			Key_ClearStates();
+-			IN_DeactivateMouse();
+-		}
++
++		// SDL drops the grab on focus loss, so always reset the cached state, otherwise it is never re-applied
++		IN_DeactivateMouse();
+ 
+ 		host.force_draw_version_time = host.realtime + 2.0;
+ 	}
+@@ -347,6 +353,14 @@ void Platform_RunEvents( void )
+ 
+ 	while( host.status != HOST_CRASHED && !host.shutdown_issued && SDL_PollEvent( &ev ))
+ 		SDLash_EventHandler( &ev );
++
++	// the cursor leaks to the other monitor after alt-tab when the grab is lost without a focus event; re-take it
++	if( host.status == HOST_FRAME && cls.state == ca_active && cls.key_dest == key_game && !host.mouse_visible && !m_ignore.value
++		&& FBitSet( SDL_GetWindowFlags( host.hWnd ), SDL_WINDOW_INPUT_FOCUS ) && !SDL_GetWindowRelativeMouseMode( host.hWnd ))
++	{
++		IN_DeactivateMouse();
++		IN_ActivateMouse();
++	}
+ }
+ 
+ /*
