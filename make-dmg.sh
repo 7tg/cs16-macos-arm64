@@ -43,6 +43,9 @@ fi
 
 # --- Engine (SDL3 backend) ---
 cd "$SRC/xash3d-fwgs"
+for p in "$ROOT"/patches/xash3d-fwgs-*.patch; do
+  git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
+done
 PKG_CONFIG_PATH="$DEPS/lib/pkgconfig" ./waf configure -o build-dist -T release --64bits -3 --sdl-use-pkgconfig --prefix=/
 ./waf -o build-dist build
 ./waf -o build-dist install --destdir="$PAYLOAD"
