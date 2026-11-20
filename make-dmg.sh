@@ -135,7 +135,18 @@ cl_updaterate "101"
 cl_cmdrate "100"
 rate "100000"
 ex_interp "0.01"
-fps_max "200"
+
+// FPS and display responsiveness for Apple Silicon ProMotion displays
+fps_override "1"
+fps_max "144"
+gl_vsync "0"
+cl_showfps "1"
+
+// Competitive crosshair & crisp positional audio
+cl_crosshair_size "small"
+cl_crosshair_translucent "0"
+s_eax "0"
+s_a3d "0"
 EOF
 
 # Icon: CS16Client's own artwork (GPL, ships with the source), so the public build carries no Valve art
