@@ -1,0 +1,99 @@
+diff --git a/menus/Main.cpp b/menus/Main.cpp
+index 06f0bab..11b4438 100644
+--- a/menus/Main.cpp
++++ b/menus/Main.cpp
+@@ -185,17 +185,17 @@ void CMenuMain::_Init( void )
+ 		EngFuncs::KEY_SetDest( KEY_CONSOLE );
+ 	});
+ 
+-	resumeGame.SetNameAndStatus( L( "GameUI_GameMenu_ResumeGame" ), L( "StringsList_188" ) );
++	resumeGame.SetNameAndStatus( L( "GameUI_GameMenu_ResumeGame" ), NULL );
+ 	resumeGame.SetPicture( PC_RESUME_GAME );
+ 	resumeGame.iFlags |= QMF_NOTIFY;
+ 	resumeGame.onReleased = UI_CloseMenu;
+ 
+-	disconnect.SetNameAndStatus( L( "GameUI_GameMenu_Disconnect" ), L( "Disconnect from server." ) );
++	disconnect.SetNameAndStatus( L( "GameUI_GameMenu_Disconnect" ), NULL );
+ 	disconnect.SetPicture( PC_DISCONNECT );
+ 	disconnect.iFlags |= QMF_NOTIFY;
+ 	disconnect.onReleased = VoidCb( &CMenuMain::DisconnectDialogCb );
+ 
+-	newGame.SetNameAndStatus( L( "GameUI_NewGame" ), L( "StringsList_189" ) );
++	newGame.SetNameAndStatus( L( "New Game" ), NULL );
+ 	newGame.SetPicture( PC_NEW_GAME );
+ 	newGame.iFlags |= QMF_NOTIFY;
+ 	newGame.onReleased = UI_NewGame_Menu;
+@@ -206,12 +206,12 @@ void CMenuMain::_Init( void )
+ 	hazardCourse.onReleasedClActive = VoidCb( &CMenuMain::HazardCourseDialogCb );
+ 	hazardCourse.onReleased = VoidCb( &CMenuMain::HazardCourseCb );
+ 
+-	multiPlayer.SetNameAndStatus( L( "GameUI_Multiplayer" ), L( "StringsList_198" ) );
++	multiPlayer.SetNameAndStatus( L( "Find Servers" ), NULL );
+ 	multiPlayer.SetPicture( PC_MULTIPLAYER );
+ 	multiPlayer.iFlags |= QMF_NOTIFY;
+ 	multiPlayer.onReleased = UI_MultiPlayer_Menu;
+ 
+-	configuration.SetNameAndStatus( L( "GameUI_Options" ), L( "StringsList_193" ) );
++	configuration.SetNameAndStatus( L( "GameUI_Options" ), NULL );
+ 	configuration.SetPicture( PC_CONFIG );
+ 	configuration.iFlags |= QMF_NOTIFY;
+ 	configuration.onReleased = UI_Options_Menu;
+@@ -233,7 +233,7 @@ void CMenuMain::_Init( void )
+ 	previews.iFlags |= QMF_NOTIFY;
+ 	SET_EVENT( previews.onReleased, EngFuncs::ShellExecute( MenuStrings[ IDS_MEDIA_PREVIEWURL ], NULL, false ) );
+ 
+-	quit.SetNameAndStatus( L( "GameUI_GameMenu_Quit" ), L( "GameUI_QuitConfirmationText" ) );
++	quit.SetNameAndStatus( L( "GameUI_GameMenu_Quit" ), NULL );
+ 	quit.SetPicture( PC_QUIT );
+ 	quit.iFlags |= QMF_NOTIFY;
+ 	quit.onReleased = VoidCb( &CMenuMain::QuitDialogCb );
+@@ -378,12 +378,45 @@ void CMenuMain::VidInit( bool connected )
+ 	console.SetCoord( hoffset, yoffset );
+ 	yoffset -= ygap;
+ 
+-	// now figure out what's visible
++	// CS 1.6 classic menu layout
++	int start_y = ( 420 / 480.0 ) * 768.0;
++	int gap = 24;
++	int cur_y = start_y;
++
++	quit.SetCoord( hoffset, cur_y );
++	cur_y -= gap;
++	configuration.SetCoord( hoffset, cur_y );
++	cur_y -= gap;
++	newGame.SetCoord( hoffset, cur_y );
++	cur_y -= gap;
++	multiPlayer.SetCoord( hoffset, cur_y );
++	cur_y -= gap;
++
++	if( connected )
++	{
++		if( !single )
++		{
++			disconnect.SetCoord( hoffset, cur_y );
++			cur_y -= gap;
++		}
++		resumeGame.SetCoord( hoffset, cur_y );
++		cur_y -= gap;
++	}
++
+ 	resumeGame.SetVisibility( connected );
+ 	disconnect.SetVisibility( connected && !single );
+-
+-	// they exist in the original and can be mistakenly clicked
+-	newGame.SetVisibility( false );
++	multiPlayer.SetVisibility( true );
++	newGame.SetVisibility( true );
++	configuration.SetVisibility( true );
++	quit.SetVisibility( true );
++
++	// Hide non-CS items
++	hazardCourse.SetVisibility( false );
++	customGame.SetVisibility( false );
++	readme.SetVisibility( false );
++	previews.SetVisibility( false );
++	saveRestore.SetVisibility( false );
++	return;
+ 
+ 	if( connected && single )
+ 	{
