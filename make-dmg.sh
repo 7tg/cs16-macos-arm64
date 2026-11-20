@@ -29,6 +29,9 @@ rm -rf "$PAYLOAD" "$STAGE"
 mkdir -p "$DEPS" "$PAYLOAD"
 
 # --- SDL3, built for the deployment target (Homebrew's requires the build host's macOS) ---
+for p in "$ROOT"/patches/SDL3-*.patch; do
+  [ -f "$p" ] && git -C "$SRC/SDL3" apply --check "$p" 2>/dev/null && git -C "$SRC/SDL3" apply "$p" || true
+done
 if [ ! -f "$DEPS/lib/libSDL3.0.dylib" ]; then
   [ -d "$SRC/SDL3" ] || git clone --depth 1 --branch "release-$SDL3_VER" https://github.com/libsdl-org/SDL.git "$SRC/SDL3"
   cmake -S "$SRC/SDL3" -B "$SRC/SDL3/build-dist" -DCMAKE_BUILD_TYPE=Release \
