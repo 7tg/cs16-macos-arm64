@@ -29,6 +29,9 @@ rm -rf "$PAYLOAD" "$STAGE"
 mkdir -p "$DEPS" "$PAYLOAD"
 
 # --- SDL3, built for the deployment target (Homebrew's requires the build host's macOS) ---
+for p in "$ROOT"/patches/SDL3-*.patch; do
+  [ -f "$p" ] && git -C "$SRC/SDL3" apply --check "$p" 2>/dev/null && git -C "$SRC/SDL3" apply "$p" || true
+done
 if [ ! -f "$DEPS/lib/libSDL3.0.dylib" ]; then
   [ -d "$SRC/SDL3" ] || git clone --depth 1 --branch "release-$SDL3_VER" https://github.com/libsdl-org/SDL.git "$SRC/SDL3"
   cmake -S "$SRC/SDL3" -B "$SRC/SDL3/build-dist" -DCMAKE_BUILD_TYPE=Release \
@@ -40,6 +43,9 @@ fi
 
 # --- Engine (SDL3 backend) ---
 cd "$SRC/xash3d-fwgs"
+for p in "$ROOT"/patches/xash3d-fwgs-*.patch; do
+  git apply --reverse --check "$p" 2>/dev/null || git apply "$p"
+done
 PKG_CONFIG_PATH="$DEPS/lib/pkgconfig" ./waf configure -o build-dist -T release --64bits -3 --sdl-use-pkgconfig --prefix=/
 ./waf -o build-dist build
 ./waf -o build-dist install --destdir="$PAYLOAD"
@@ -135,7 +141,18 @@ cl_updaterate "101"
 cl_cmdrate "100"
 rate "100000"
 ex_interp "0.01"
-fps_max "200"
+
+// FPS and display responsiveness for Apple Silicon ProMotion displays
+fps_override "1"
+fps_max "144"
+gl_vsync "0"
+cl_showfps "1"
+
+// Competitive crosshair & crisp positional audio
+cl_crosshair_size "small"
+cl_crosshair_translucent "0"
+s_eax "0"
+s_a3d "0"
 EOF
 
 # Icon: CS16Client's own artwork (GPL, ships with the source), so the public build carries no Valve art

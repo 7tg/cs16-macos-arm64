@@ -1,0 +1,222 @@
+diff --git a/engine/common/model.c b/engine/common/model.c
+index b93b896a..dd17fa92 100644
+--- a/engine/common/model.c
++++ b/engine/common/model.c
+@@ -13,6 +13,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ */
+ #include "common.h"
++#include "client.h"
+ #include "mod_local.h"
+ #include "sprite.h"
+ #include "xash3d_mathlib.h"
+@@ -144,6 +145,11 @@ void Mod_FreeModel( model_t *mod )
+ 	if( !mod || mod->needload == NL_UNREFERENCED )
+ 		return;
+ 
++#if !XASH_DEDICATED
++	if( gameui.playermodel.model == mod )
++		gameui.playermodel.model = NULL;
++#endif
++
+ 	if( mod->type != mod_brush || mod->name[0] != '*' )
+ 	{
+ 		Mod_FreeUserData( mod );
+diff --git a/engine/platform/posix/crash_posix.c b/engine/platform/posix/crash_posix.c
+index 35556a71..3e97b863 100644
+--- a/engine/platform/posix/crash_posix.c
++++ b/engine/platform/posix/crash_posix.c
+@@ -127,6 +127,7 @@ static struct sigaction old_ill_act;
+ 
+ void Sys_SetupCrashHandler( const char *argv0 )
+ {
++	return; // let macOS/lldb catch signal
+ 	struct sigaction act =
+ 	{
+ 		.sa_sigaction = Sys_Crash,
+diff --git a/ref/gl/gl_studio.c b/ref/gl/gl_studio.c
+index 39873fb4..b259db59 100644
+--- a/ref/gl/gl_studio.c
++++ b/ref/gl/gl_studio.c
+@@ -905,18 +905,20 @@ static void R_StudioSetupBones( cl_entity_t *e )
+ 
+ 	mstudiobone_t *pbones = (mstudiobone_t *)((byte *)m_pStudioHeader + m_pStudioHeader->boneindex);
+ 
+-	// calc gait animation
+-	if( m_pPlayerInfo && m_pPlayerInfo->gaitsequence != 0 )
++	// calc gait animation (also support curstate.gaitsequence for menu preview models)
++	int gaitseq = m_pPlayerInfo ? m_pPlayerInfo->gaitsequence : e->curstate.gaitsequence;
++	float gaitfrm = m_pPlayerInfo ? m_pPlayerInfo->gaitframe : 0.0f;
++	if( gaitseq != 0 )
+ 	{
+ 		qboolean	copy_bones = true;
+ 
+-		if( m_pPlayerInfo->gaitsequence >= m_pStudioHeader->numseq )
+-			m_pPlayerInfo->gaitsequence = 0;
++		if( gaitseq < 0 || gaitseq >= m_pStudioHeader->numseq )
++			gaitseq = 0;
+ 
+-		pseqdesc = (mstudioseqdesc_t *)((byte *)m_pStudioHeader + m_pStudioHeader->seqindex) + m_pPlayerInfo->gaitsequence;
++		pseqdesc = (mstudioseqdesc_t *)((byte *)m_pStudioHeader + m_pStudioHeader->seqindex) + gaitseq;
+ 
+ 		panim = gEngfuncs.R_StudioGetAnim( m_pStudioHeader, RI.currentmodel, pseqdesc );
+-		R_StudioCalcRotations( e, pos2, q2, pseqdesc, panim, m_pPlayerInfo->gaitframe );
++		R_StudioCalcRotations( e, pos2, q2, pseqdesc, panim, gaitfrm );
+ 
+ 		for( int i = 0; i < m_pStudioHeader->numbones; i++ )
+ 		{
+@@ -2985,16 +2987,19 @@ static int R_StudioDrawPlayer( int flags, entity_state_t *pplayer )
+ 		return 0;
+ 
+ 	R_StudioSetHeader((studiohdr_t *)gEngfuncs.Mod_Extradata( mod_studio, RI.currentmodel ));
++	if( !m_pStudioHeader ) return 0;
+ 
+ 	if( pplayer->gaitsequence )
+ 	{
+ 		m_pPlayerInfo = pfnPlayerInfo( m_nPlayerIndex );
+ 		vec3_t orig_angles = Vec3( RI.currententity->angles );
+ 
+-		R_StudioProcessGait( pplayer );
+-
+-		m_pPlayerInfo->gaitsequence = pplayer->gaitsequence;
+-		m_pPlayerInfo = NULL;
++		if( m_pPlayerInfo )
++		{
++			R_StudioProcessGait( pplayer );
++			m_pPlayerInfo->gaitsequence = pplayer->gaitsequence;
++			m_pPlayerInfo = NULL;
++		}
+ 
+ 		R_StudioSetUpTransform( RI.currententity );
+ 		VectorCopy( orig_angles, RI.currententity->angles );
+@@ -3011,7 +3016,11 @@ static int R_StudioDrawPlayer( int flags, entity_state_t *pplayer )
+ 		RI.currententity->latched.prevcontroller[3] = RI.currententity->curstate.controller[3];
+ 
+ 		m_pPlayerInfo = pfnPlayerInfo( m_nPlayerIndex );
+-		m_pPlayerInfo->gaitsequence = 0;
++		if( m_pPlayerInfo )
++		{
++			m_pPlayerInfo->gaitsequence = 0;
++			m_pPlayerInfo = NULL;
++		}
+ 
+ 		R_StudioSetUpTransform( RI.currententity );
+ 	}
+@@ -3033,8 +3042,11 @@ static int R_StudioDrawPlayer( int flags, entity_state_t *pplayer )
+ 	R_StudioSetupBones( RI.currententity );
+ 	R_StudioSaveBones( );
+ 
+-	m_pPlayerInfo->renderframe = tr.realframecount;
+-	m_pPlayerInfo = NULL;
++	if( m_pPlayerInfo )
++	{
++		m_pPlayerInfo->renderframe = tr.realframecount;
++		m_pPlayerInfo = NULL;
++	}
+ 
+ 	if( flags & STUDIO_EVENTS )
+ 	{
+@@ -3045,7 +3057,8 @@ static int R_StudioDrawPlayer( int flags, entity_state_t *pplayer )
+ 		if( RI.currententity->index > 0 )
+ 		{
+ 			cl_entity_t *ent = CL_GetEntityByIndex( RI.currententity->index );
+-			memcpy( ent->attachment, RI.currententity->attachment, sizeof( vec3_t ) * 4 );
++			if( ent )
++				memcpy( ent->attachment, RI.currententity->attachment, sizeof( vec3_t ) * 4 );
+ 		}
+ 	}
+ 
+@@ -3072,8 +3085,16 @@ static int R_StudioDrawPlayer( int flags, entity_state_t *pplayer )
+ 		m_pPlayerInfo = pfnPlayerInfo( m_nPlayerIndex );
+ 
+ 		// get remap colors
+-		g_nTopColor = m_pPlayerInfo->topcolor;
+-		g_nBottomColor = m_pPlayerInfo->bottomcolor;
++		if( m_pPlayerInfo )
++		{
++			g_nTopColor = m_pPlayerInfo->topcolor;
++			g_nBottomColor = m_pPlayerInfo->bottomcolor;
++		}
++		else
++		{
++			g_nTopColor = RI.currententity->curstate.colormap & 0xFF;
++			g_nBottomColor = (RI.currententity->curstate.colormap & 0xFF00) >> 8;
++		}
+ 
+ 		if( g_nTopColor < 0 ) g_nTopColor = 0;
+ 		if( g_nTopColor > 360 ) g_nTopColor = 360;
+@@ -3141,6 +3162,7 @@ static int R_StudioDrawModel( int flags )
+ 	}
+ 
+ 	R_StudioSetHeader((studiohdr_t *)gEngfuncs.Mod_Extradata( mod_studio, RI.currentmodel ));
++	if( !m_pStudioHeader ) return 0;
+ 
+ 	R_StudioSetUpTransform( RI.currententity );
+ 
+@@ -3172,7 +3194,8 @@ static int R_StudioDrawModel( int flags )
+ 		if( RI.currententity->index > 0 )
+ 		{
+ 			cl_entity_t *ent = CL_GetEntityByIndex( RI.currententity->index );
+-			memcpy( ent->attachment, RI.currententity->attachment, sizeof( vec3_t ) * 4 );
++			if( ent )
++				memcpy( ent->attachment, RI.currententity->attachment, sizeof( vec3_t ) * 4 );
+ 		}
+ 	}
+ 
+@@ -3221,7 +3244,11 @@ static void R_StudioDrawModelInternal( cl_entity_t *e, int flags )
+ 	{
+ 		// select the properly method
+ 		if( e->player )
+-			pStudioDraw->StudioDrawPlayer( flags, R_StudioGetPlayerState( e->index - 1 ));
++		{
++			entity_state_t *st = R_StudioGetPlayerState( e->index - 1 );
++			if( !st ) st = &e->curstate;
++			pStudioDraw->StudioDrawPlayer( flags, st );
++		}
+ 		else pStudioDraw->StudioDrawModel( flags );
+ 	}
+ }
+@@ -3230,7 +3257,7 @@ static cl_entity_t *R_FindParentEntity( cl_entity_t *e, cl_entity_t **entities,
+ {
+ 	for( uint i = 0; i < num_entities; i++ )
+ 	{
+-		if( entities[i]->index == e->curstate.aiment )
++		if( entities[i] && ( entities[i]->index == e->curstate.aiment || ( e->curstate.aiment == 1 && i == 0 ) ) )
+ 			return entities[i];
+ 	}
+ 
+@@ -3255,23 +3282,28 @@ void R_DrawStudioModel( cl_entity_t *e )
+ 	}
+ 	else if( e->curstate.movetype == MOVETYPE_FOLLOW )
+ 	{
+-		cl_entity_t *parent = CL_GetEntityByIndex( e->curstate.aiment );
+-
+-		if( !parent || !parent->model || parent->model->type != mod_studio )
+-			return;
+-
+-		parent = R_FindParentEntity( e, tr.draw_list->solid_entities, tr.draw_list->num_solid_entities );
++		cl_entity_t *parent = R_FindParentEntity( e, tr.draw_list->solid_entities, tr.draw_list->num_solid_entities );
+ 
+ 		if( !parent )
+ 			parent = R_FindParentEntity( e, tr.draw_list->trans_entities, tr.draw_list->num_trans_entities );
+ 
++		if( !parent )
++			parent = CL_GetEntityByIndex( e->curstate.aiment );
++
++		if( !parent || !parent->model || parent->model->type != mod_studio )
++			return;
++
+ 		if( parent )
+ 		{
+ 			RI.currententity = parent;
++			RI.currentmodel = parent->model;
+ 			R_StudioDrawModelInternal( RI.currententity, 0 );
+ 			VectorCopy( RI.currententity->curstate.origin, e->curstate.origin );
+ 			VectorCopy( RI.currententity->origin, e->origin );
++			VectorCopy( RI.currententity->curstate.angles, e->curstate.angles );
++			VectorCopy( RI.currententity->angles, e->angles );
+ 			RI.currententity = e;
++			RI.currentmodel = e->model;
+ 
+ 			R_StudioDrawModelInternal( e, STUDIO_RENDER|STUDIO_EVENTS );
+ 		}

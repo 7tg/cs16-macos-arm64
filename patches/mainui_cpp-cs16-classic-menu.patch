@@ -1,0 +1,1857 @@
+diff --git a/BaseMenu.cpp b/BaseMenu.cpp
+index 1350664..03b54e1 100755
+--- a/BaseMenu.cpp
++++ b/BaseMenu.cpp
+@@ -59,13 +59,13 @@ const char	*uiSounds[] = {
+ 
+ // they match default WON colors.lst now, except alpha
+ // a1ba: made uiColorHelp brighter so it's easier to read
+-unsigned int uiColorHelp        = 0xFFA0A0A0; // 160, 160, 160, 255 // hint letters color
+-unsigned int uiPromptBgColor    = 0xFF383838; // 56,  56,  56,  255 // dialog background color
+-unsigned int uiPromptTextColor  = 0xFFF0B418; // 240, 180, 24,  255 // dialog or button letters color
+-unsigned int uiPromptFocusColor = 0xFFFFFF00; // 255, 255,  0,  255 // dialog or button focus letters color
+-unsigned int uiInputTextColor   = 0xFFF0B418; // 240, 180, 24,  255
+-unsigned int uiInputBgColor     = 0x80383838; // 56,  56,  56,  128 // field, scrollist, checkbox background color
+-unsigned int uiInputFgColor     = 0xFF555555; // 85,  85,  85,  255 // field, scrollist, checkbox foreground color
++unsigned int uiColorHelp        = 0xFFC4C9CE; // VGUI2 crisp light-grey labels
++unsigned int uiPromptBgColor    = 0xF43E4246; // VGUI2 dialog charcoal grey
++unsigned int uiPromptTextColor  = 0xFFE6E9EC; // VGUI2 crisp white-grey text
++unsigned int uiPromptFocusColor = 0xFFFF9B14; // VGUI2 signature orange focus
++unsigned int uiInputTextColor   = 0xFFFFFFFF; // VGUI2 pure white input text
++unsigned int uiInputBgColor     = 0xF5222528; // VGUI2 dark inset list background
++unsigned int uiInputFgColor     = 0xFF686D73; // VGUI2 1px bevel border grey
+ unsigned int uiColorWhite       = 0xFFFFFFFF; // 255, 255, 255, 255 // useful for bitmaps
+ unsigned int uiColorDkGrey      = 0x80404040; // 64,  64,  64,  128 // shadow and grayed items
+ unsigned int uiColorBlack       = 0x80000000; //  0,   0,   0,  128 // some controls background
+@@ -291,7 +291,7 @@ int UI_DrawString( HFont font, int x, int y, int w, int h,
+ 	if( flags & ETF_SHADOW )
+ 	{
+ 		shadowModulate = PackAlpha( uiColorBlack, UnpackAlpha( color ));
+-		shadowOffset = Q_max( 1, uiStatic.scaleX * 3 );
++		shadowOffset = 1;
+ 	}
+ 
+ 	modulate = color;
+@@ -1189,7 +1189,7 @@ void UI_Init( void )
+ 
+ 	gMenu.m_gameinfo = *gi;
+ 
+-	uiStatic.renderPicbuttonText = gMenu.m_gameinfo.flags & GFL_RENDER_PICBUTTON_TEXT;
++	uiStatic.renderPicbuttonText = true;
+ 
+ 	// trying to load colors.lst
+ 	UI_ApplyCustomColors ();
+diff --git a/controls/CheckBox.cpp b/controls/CheckBox.cpp
+index 77d013b..87928d9 100644
+--- a/controls/CheckBox.cpp
++++ b/controls/CheckBox.cpp
+@@ -22,7 +22,7 @@ GNU General Public License for more details.
+ CMenuCheckBox::CMenuCheckBox() : BaseClass()
+ {
+ 	SetCharSize( QM_DEFAULTFONT );
+-	SetSize( 32, 32 );
++	SetSize( 22, 22 );
+ 	SetPicture( UI_CHECKBOX_EMPTY,
+ 		UI_CHECKBOX_FOCUS,
+ 		UI_CHECKBOX_PRESSED,
+@@ -110,9 +110,30 @@ CMenuCheckBox::Draw
+ */
+ void CMenuCheckBox::Draw( void )
+ {
+-	uint textflags = ( iFlags & QMF_DROPSHADOW ? ETF_SHADOW : 0 ) | ETF_NOSIZELIMIT | ETF_FORCECOL;
++	bool hovered = ( this == m_pParent->ItemAtCursor() ) && !( iFlags & QMF_GRAYED );
++	int boxSz = (int)( 16 * uiStatic.scaleY );
++	int boxX = m_scPos.x;
++	int boxY = m_scPos.y + ( m_scSize.h - boxSz ) / 2;
++
++	// VGUI2 inset checkbox square
++	UI_FillRect( boxX, boxY, boxSz, boxSz, ( iFlags & QMF_GRAYED ) ? 0xFF2E3134 : 0xFF222528 );
++	UI_FillRect( boxX, boxY, boxSz, 1, 0xFF181A1C );
++	UI_FillRect( boxX, boxY, 1, boxSz, 0xFF181A1C );
++	UI_FillRect( boxX, boxY + boxSz - 1, boxSz, 1, hovered ? 0xFFFF9B14 : 0xFF686D73 );
++	UI_FillRect( boxX + boxSz - 1, boxY, 1, boxSz, hovered ? 0xFFFF9B14 : 0xFF686D73 );
++
++	if( bChecked )
++	{
++		int pad = Q_max( 3, (int)( 4 * uiStatic.scaleY ) );
++		UI_FillRect( boxX + pad, boxY + pad, boxSz - pad * 2, boxSz - pad * 2,
++			( iFlags & QMF_GRAYED ) ? 0xFF70757A : 0xFFFF9B14 );
++	}
+ 
+-	UI_DrawString( font, m_scTextPos, m_scTextSize, szName, colorText, m_scChSize, eTextAlignment, textflags );
++	Point tp( boxX + boxSz + (int)( 10 * uiStatic.scaleX ), m_scPos.y );
++	Size ts( m_scTextSize.w, m_scSize.h );
++	uint tcol = ( iFlags & QMF_GRAYED ) ? 0xFF787C80 : ( hovered ? 0xFFFFFFFF : 0xFFE0E4E8 );
++	UI_DrawString( font, tp, ts, szName, tcol, m_scChSize, QM_LEFT, ETF_NOSIZELIMIT | ETF_FORCECOL );
++	return;
+ 
+ 	if( szStatusText && iFlags & QMF_NOTIFY )
+ 	{
+diff --git a/controls/Field.cpp b/controls/Field.cpp
+index d602be0..3154bea 100644
+--- a/controls/Field.cpp
++++ b/controls/Field.cpp
+@@ -27,9 +27,9 @@ CMenuField::CMenuField() : BaseClass()
+ 	bNumbersOnly = false;
+ 
+ 	iFlags |= QMF_DROPSHADOW;
+-	eTextAlignment = QM_CENTER;
++	eTextAlignment = QM_LEFT;
+ 
+-	SetSize( 200, 32 );
++	SetSize( 200, 28 );
+ 
+ 	iMaxLength = 0;
+ 	iCursor = 0;
+@@ -462,7 +462,8 @@ void CMenuField::Draw( void )
+ 		UI_DrawRectangle( newPos, m_scSize, uiInputFgColor );
+ 	}
+ 
+-	textHeight = y - (m_scChSize * 1.5f);
++	textHeight = y - (int)(m_scChSize * 1.25f);
++	newPos.x += (int)( 8 * uiStatic.scaleX );
+ 	UI_DrawString( font, m_scPos.x, textHeight, m_scSize.w, m_scChSize, szName, uiColorHelp, m_scChSize, QM_LEFT, textflags | ETF_FORCECOL );
+ 
+ 	if( iFlags & QMF_GRAYED )
+diff --git a/controls/Framework.cpp b/controls/Framework.cpp
+index 12d2a29..6a71c25 100644
+--- a/controls/Framework.cpp
++++ b/controls/Framework.cpp
+@@ -43,41 +43,104 @@ void CMenuFramework::Show()
+ 	BaseClass::Show();
+ }
+ 
++static bool IsSettingsTabMenu( const char *n )
++{
++	return !strcmp( n, "CMenuOptions" ) || !strcmp( n, "CMenuPlayerSetup" ) ||
++	       !strcmp( n, "CMenuControls" ) || !strcmp( n, "CAdvancedControls" ) ||
++	       !strcmp( n, "CMenuAudio" ) || !strcmp( n, "CMenuVideo" ) ||
++	       !strcmp( n, "CMenuVidModes" ) || !strcmp( n, "CMenuVidOptions" ) ||
++	       !strcmp( n, "CMenuGameOptions" ) || !strcmp( n, "CMenuCrosshair" );
++}
++
++static int GetSettingsTabIndex( const char *n )
++{
++	if( !strcmp( n, "CMenuPlayerSetup" ) || !strcmp( n, "CMenuCrosshair" ) || !strcmp( n, "CMenuOptions" ) ) return 0;
++	if( !strcmp( n, "CMenuControls" ) ) return 1;
++	if( !strcmp( n, "CAdvancedControls" ) ) return 2;
++	if( !strcmp( n, "CMenuAudio" ) ) return 3;
++	if( !strcmp( n, "CMenuVidModes" ) || !strcmp( n, "CMenuVideo" ) ) return 4;
++	if( !strcmp( n, "CMenuVidOptions" ) ) return 5;
++	if( !strcmp( n, "CMenuGameOptions" ) ) return 6;
++	return 0;
++}
++
++static const char *g_vguiSettingsTabs[7] = {
++	"Multiplayer", "Keyboard", "Mouse", "Audio", "Video", "Quality", "Network"
++};
++
++static void DrawVguiBevelBox( int x, int y, int w, int h, unsigned int bg, bool inset )
++{
++	unsigned int tl = inset ? 0xFF222528 : 0xFF6E737A;
++	unsigned int br = inset ? 0xFF6E737A : 0xFF222528;
++	UI_FillRect( x, y, w, h, bg );
++	UI_FillRect( x, y, w, 1, tl );
++	UI_FillRect( x, y, 1, h, tl );
++	UI_FillRect( x, y + h - 1, w, 1, br );
++	UI_FillRect( x + w - 1, y, 1, h, br );
++}
++
+ void CMenuFramework::Draw()
+ {
+-	static int statusFadeTime;
+ 	static CMenuBaseItem *lastItem;
+ 	CMenuBaseItem *item;
+ 
++	if( strcmp( szName, "CMenuMain" ) != 0 )
++	{
++		const float sx = uiStatic.scaleX, sy = uiStatic.scaleY;
++		const int wx = (int)( ( uiStatic.xOffset + 48 ) * sx );
++		const int wy = (int)( ( uiStatic.yOffset + 52 ) * sy );
++		const int ww = (int)( 928 * sx );
++		const int wh = (int)( 664 * sy );
++
++		// Dim background slightly and draw VGUI2 charcoal dialog window (#3E4246)
++		UI_FillRect( 0, 0, gpGlobals->scrWidth, gpGlobals->scrHeight, 0x70000000 );
++		DrawVguiBevelBox( wx, wy, ww, wh, 0xF43E4246, false );
++
++		// Top-right close 'x' button
++		const int closeX = wx + ww - (int)( 28 * sx );
++		const int closeY = wy + (int)( 8 * sy );
++		const int closeSz = (int)( 20 * sy );
++		bool closeHover = UI_CursorInRect( Point( closeX, closeY ), Size( closeSz, closeSz ) );
++		UI_DrawString( uiStatic.hDefaultFont, Point( closeX, closeY ), Size( closeSz, closeSz ), "x",
++			closeHover ? 0xFFFF9B14 : 0xFFC0C4C8, (int)( 18 * sy ), QM_CENTER, ETF_NOSIZELIMIT | ETF_FORCECOL );
++
++		// Inner tabbed page box
++		const int ix = wx + (int)( 14 * sx );
++		const int iy = wy + (int)( 68 * sy );
++		const int iw = ww - (int)( 28 * sx );
++		const int ih = wh - (int)( 132 * sy );
++
++		if( IsSettingsTabMenu( szName ) )
++		{
++			const int activeTab = GetSettingsTabIndex( szName );
++			const int tabY = wy + (int)( 38 * sy );
++			const int tabW = (int)( 114 * sx );
++			const int tabH = (int)( 30 * sy );
++			for( int t = 0; t < 7; t++ )
++			{
++				int tx = ix + t * ( tabW + (int)( 2 * sx ) );
++				bool sel = ( t == activeTab );
++				int ty = sel ? ( tabY - (int)( 2 * sy ) ) : tabY;
++				int th = sel ? ( tabH + (int)( 3 * sy ) ) : tabH;
++				bool hov = UI_CursorInRect( Point( tx, ty ), Size( tabW, th ) );
++				DrawVguiBevelBox( tx, ty, tabW, th, sel ? 0xF8484C52 : ( hov ? 0xF442464B : 0xF435383C ), false );
++				UI_DrawString( uiStatic.hDefaultFont, Point( tx + (int)( 10 * sx ), ty ), Size( tabW - (int)( 16 * sx ), th ),
++					g_vguiSettingsTabs[t], sel ? 0xFFFFFFFF : ( hov ? 0xFFFF9B14 : 0xFFC8CDD2 ),
++					(int)( 15 * sy ), QM_LEFT, ETF_NOSIZELIMIT | ETF_FORCECOL );
++			}
++		}
++
++		DrawVguiBevelBox( ix, iy, iw, ih, 0xF4484C52, false );
++	}
++
+ 	BaseClass::Draw();
+ 
+ 	item = ItemAtCursor();
+-	// a1ba: maybe this should be somewhere else?
+ 	if( item != lastItem )
+ 	{
+ 		if( item ) item->m_iLastFocusTime = uiStatic.realTime;
+-		statusFadeTime = uiStatic.realTime;
+-
+ 		lastItem = item;
+ 	}
+-
+-	// draw status text if status text isn't rendered at right side of an item
+-	// ideally, framework shouldn't even know about this but since everything
+-	// WON-styled goes here, let's leave it here...
+-	if( item && item == lastItem && !FBitSet( item->iFlags, QMF_NOTIFY ) && item->szStatusText != NULL )
+-	{
+-		float alpha = bound( 0, ((( uiStatic.realTime - statusFadeTime ) - 100 ) * 0.01f ), 1 );
+-		int r, g, b, x, len;
+-
+-		EngFuncs::ConsoleStringLen( item->szStatusText, &len, NULL );
+-
+-		UnpackRGB( r, g, b, uiColorHelp );
+-		EngFuncs::DrawSetTextColor( r, g, b, alpha * 255 );
+-		x = ( ScreenWidth - len ) * 0.5f; // centering
+-
+-		EngFuncs::DrawConsoleString( x, uiStatic.yOffset + 720 * uiStatic.scaleY, item->szStatusText );
+-	}
+-	else statusFadeTime = uiStatic.realTime;
+ }
+ 
+ void CMenuFramework::Hide()
+@@ -113,11 +176,12 @@ CMenuPicButton * CMenuFramework::AddButton(const char *szName, const char *szSta
+ 
+ 	CMenuPicButton *btn = new CMenuPicButton();
+ 
+-	btn->SetNameAndStatus( szName, szStatus );
++	btn->SetNameAndStatus( szName, NULL );
+ 	btn->SetPicture( buttonPicId );
+ 	btn->iFlags |= iFlags;
+ 	btn->onReleased = onReleased;
+-	btn->SetCoord( 72, 230 + m_iBtnsNum * 50 );
++	btn->SetRect( 64 + m_iBtnsNum * 124, 670, 114, 28 );
++	btn->SetCharSize( QM_SMALLFONT );
+ 	AddItem( btn );
+ 
+ 	m_apBtns[m_iBtnsNum++] = btn;
+@@ -135,11 +199,12 @@ CMenuPicButton * CMenuFramework::AddButton( const char *szName, const char *szSt
+ 
+ 	CMenuPicButton *btn = new CMenuPicButton();
+ 
+-	btn->SetNameAndStatus( szName, szStatus );
++	btn->SetNameAndStatus( szName, NULL );
+ 	btn->SetPicture( szButtonPath, hotkey );
+ 	btn->iFlags |= iFlags;
+ 	btn->onReleased = onReleased;
+-	btn->SetCoord( 72, 230 + m_iBtnsNum * 50 );
++	btn->SetRect( 64 + m_iBtnsNum * 124, 670, 114, 28 );
++	btn->SetCharSize( QM_SMALLFONT );
+ 	AddItem( btn );
+ 
+ 	m_apBtns[m_iBtnsNum++] = btn;
+@@ -154,12 +219,67 @@ void CMenuFramework::RealignButtons( void )
+ 		if( !m_apBtns[i]->IsVisible())
+ 			continue;
+ 
+-		m_apBtns[i]->SetCoord( 72, 230 + j * 50 );
++		m_apBtns[i]->SetRect( 64 + j * 124, 670, 114, 28 );
++		m_apBtns[i]->SetCharSize( QM_SMALLFONT );
+ 		m_apBtns[i]->CalcPosition();
++		m_apBtns[i]->CalcSizes();
+ 		j++;
+ 	}
+ }
+ 
++bool CMenuFramework::KeyUp( int key )
++{
++	if( UI::Key::IsLeftMouse( key ) && strcmp( szName, "CMenuMain" ) != 0 )
++	{
++		const float sx = uiStatic.scaleX, sy = uiStatic.scaleY;
++		const int wx = (int)( ( uiStatic.xOffset + 48 ) * sx );
++		const int wy = (int)( ( uiStatic.yOffset + 52 ) * sy );
++		const int ww = (int)( 928 * sx );
++		const int closeX = wx + ww - (int)( 28 * sx );
++		const int closeY = wy + (int)( 8 * sy );
++		const int closeSz = (int)( 20 * sy );
++		if( UI_CursorInRect( Point( closeX, closeY ), Size( closeSz, closeSz ) ) )
++		{
++			Hide();
++			return true;
++		}
++
++		if( IsSettingsTabMenu( szName ) )
++		{
++			const int ix = wx + (int)( 14 * sx );
++			const int tabY = wy + (int)( 36 * sy );
++			const int tabW = (int)( 118 * sx );
++			const int tabH = (int)( 34 * sy );
++			const int activeTab = GetSettingsTabIndex( szName );
++			for( int t = 0; t < 7; t++ )
++			{
++				int tx = ix + t * ( tabW + (int)( 2 * sx ) );
++				if( UI_CursorInRect( Point( tx, tabY - 2 ), Size( tabW, tabH ) ) )
++				{
++					if( t != activeTab )
++					{
++						CMenuFramework *oldMenu = this;
++						switch( t )
++						{
++						case 0: UI_PlayerSetup_Menu(); break;
++						case 1: UI_Controls_Menu(); break;
++						case 2: UI_AdvControls_Menu(); break;
++						case 3: UI_Audio_Menu(); break;
++						case 4: UI_VidModes_Menu(); break;
++						case 5: UI_VidOptions_Menu(); break;
++						case 6: UI_GameOptions_Menu(); break;
++						}
++						oldMenu->DisableTransition();
++						SetBits( oldMenu->iFlags, QMF_CLOSING );
++					}
++					return true;
++				}
++			}
++		}
++	}
++	return BaseClass::KeyUp( key );
++}
++
+ bool CMenuFramework::KeyDown( int key )
+ {
+ 	bool b = BaseClass::KeyDown( key );
+@@ -183,7 +303,7 @@ void CMenuFramework::PrepareBannerAnimation( EAnimation direction, CMenuPicButto
+ 	if( banner.Parent() != this )
+ 		return;
+ 
+-	bannerAnimDirection = direction;
++	bannerAnimDirection = ANIM_NO;
+ 	if( initiator )
+ 	{
+ 		bannerRects[0].pt = initiator->GetRenderPosition();
+@@ -231,24 +351,21 @@ void CMenuFramework::CMenuBannerBitmap::SetPicture(const char *pic)
+ 
+ void CMenuFramework::CMenuBannerBitmap::Draw( Point pt, Size sz )
+ {
+-	if( image.IsValid() )
+-	{
+-		UI_DrawPic( pt, sz, uiColorWhite, image, QM_DRAWADDITIVE );
+-	}
+-	else
+-	{
+-		UI_DrawString( uiStatic.hHeavyBlur, pt,
+-			sz,
+-			szName,
+-			uiPromptTextColor, m_scChSize,
+-			QM_LEFT, ETF_ADDITIVE | ETF_NOSIZELIMIT | ETF_FORCECOL );
+-
+-		UI_DrawString( uiStatic.hLightBlur, pt,
+-			sz,
+-			szName,
+-			uiPromptTextColor, m_scChSize,
+-			QM_LEFT, ETF_ADDITIVE | ETF_NOSIZELIMIT | ETF_FORCECOL );
+-	}
++	CMenuFramework *pParent = (CMenuFramework *)Parent();
++	if( !pParent || !strcmp( pParent->szName, "CMenuMain" ))
++		return;
++
++	const char *pn = pParent->szName;
++	const char *title = "OPTIONS";
++	if( !strcmp( pn, "CMenuServerBrowser" ) || !strcmp( pn, "CMenuMultiplayer" ) )
++		title = "SERVERS";
++	else if( !strcmp( pn, "CMenuCreateGame" ) )
++		title = "CREATE SERVER";
++
++	const float sx = uiStatic.scaleX, sy = uiStatic.scaleY;
++	Point headerPt( (int)( ( uiStatic.xOffset + 62 ) * sx ), (int)( ( uiStatic.yOffset + 60 ) * sy ) );
++	Size headerSz( (int)( 400 * sx ), (int)( 22 * sy ) );
++	UI_DrawString( uiStatic.hBoldFont, headerPt, headerSz, title, 0xFFFFFFFF, (int)( 15 * sy ), QM_LEFT, ETF_NOSIZELIMIT | ETF_FORCECOL );
+ }
+ 
+ void CMenuFramework::CMenuBannerBitmap::Draw()
+diff --git a/controls/Framework.h b/controls/Framework.h
+index f1db70e..807e7ec 100644
+--- a/controls/Framework.h
++++ b/controls/Framework.h
+@@ -40,6 +40,7 @@ public:
+ 	bool IsRoot() const override { return true; }
+ 
+ 	bool KeyDown( int key ) override;
++	bool KeyUp( int key ) override;
+ 
+ 	CMenuPicButton *AddButton( const char *szName, const char *szStatus,
+ 		EDefaultBtns iButton, CEventCallback onReleased = CEventCallback(), int iFlags = 0 );
+diff --git a/controls/PicButton.cpp b/controls/PicButton.cpp
+index ef9e268..4490ddd 100644
+--- a/controls/PicButton.cpp
++++ b/controls/PicButton.cpp
+@@ -308,7 +308,7 @@ void CMenuPicButton::Draw( )
+ 			DrawButton( r, g, b, 255, rects, state );
+ 		}
+ 	}
+-	else if( !uiStatic.lowmemory )
++	else if( false ) // VGUI2 style buttons
+ 	{
+ 		const uint heavy_blur_flags = ETF_NOSIZELIMIT | ETF_FORCECOL;
+ 		const uint light_blur_flags = ETF_NOSIZELIMIT | ETF_FORCECOL | ETF_ADDITIVE;
+@@ -354,28 +354,29 @@ void CMenuPicButton::Draw( )
+ 	else
+ 	{
+ 		uint textflags = ETF_NOSIZELIMIT | ETF_FORCECOL;
++		bool isMain = m_pParent && !strcmp( m_pParent->szName, "CMenuMain" ) && !bPulse;
++		bool hovered = ( this == m_pParent->ItemAtCursor() ) && !( iFlags & QMF_GRAYED );
++		Point textPos = m_scPos;
+ 
+-		SetBits( textflags, (iFlags & QMF_DROPSHADOW) ? ETF_SHADOW : 0 );
+-
+-		if( iFlags & QMF_GRAYED )
++		if( !isMain )
+ 		{
+-			UI_DrawString( font, m_scPos, m_scSize, szName, uiColorDkGrey, m_scChSize, eTextAlignment, textflags );
++			uint bg = ( iFlags & QMF_GRAYED ) ? 0xCC35383C : ( m_bPressed ? 0xFF32363A : ( hovered ? 0xFF565B62 : 0xFF484C52 ) );
++			uint tl = m_bPressed ? 0xFF222528 : 0xFF7A8088;
++			uint br = m_bPressed ? 0xFF7A8088 : 0xFF222528;
++			UI_FillRect( m_scPos.x, m_scPos.y, m_scSize.w, m_scSize.h, bg );
++			UI_FillRect( m_scPos.x, m_scPos.y, m_scSize.w, 1, tl );
++			UI_FillRect( m_scPos.x, m_scPos.y, 1, m_scSize.h, tl );
++			UI_FillRect( m_scPos.x, m_scPos.y + m_scSize.h - 1, m_scSize.w, 1, br );
++			UI_FillRect( m_scPos.x + m_scSize.w - 1, m_scPos.y, 1, m_scSize.h, br );
++			textPos.x += (int)( 10 * uiStatic.scaleX );
+ 		}
+-		else if( this != m_pParent->ItemAtCursor() )
+-		{
+-			UI_DrawString( font, m_scPos, m_scSize, szName, colorBase, m_scChSize, eTextAlignment, textflags );
+-		}
+-		else if( eFocusAnimation == QM_HIGHLIGHTIFFOCUS )
++		else
+ 		{
+-			UI_DrawString( font, m_scPos, m_scSize, szName, colorFocus, m_scChSize, eTextAlignment, textflags );
++			SetBits( textflags, (iFlags & QMF_DROPSHADOW) ? ETF_SHADOW : 0 );
+ 		}
+-		else if( eFocusAnimation == QM_PULSEIFFOCUS )
+-		{
+-			float pulsar = 0.5f + 0.5f * sin( (float)uiStatic.realTime / UI_PULSE_DIVISOR );
+ 
+-			UI_DrawString( font, m_scPos, m_scSize, szName,
+-				InterpColor( colorBase, colorFocus, pulsar ), m_scChSize, eTextAlignment, textflags );
+-		}
++		uint col = ( iFlags & QMF_GRAYED ) ? 0xFF787C80 : ( hovered ? (uint)colorFocus : (uint)colorBase );
++		UI_DrawString( font, textPos, m_scSize, szName, col, m_scChSize, eTextAlignment, textflags );
+ 	}
+ 
+ 	iOldState = state;
+diff --git a/controls/PlayerModelView.cpp b/controls/PlayerModelView.cpp
+index 8aaf6c1..5436545 100644
+--- a/controls/PlayerModelView.cpp
++++ b/controls/PlayerModelView.cpp
+@@ -22,6 +22,7 @@ CMenuPlayerModelView::CMenuPlayerModelView() : CMenuBaseItem()
+ 	memset( &refdef, 0, sizeof( refdef ) );
+ 
+ 	ent = NULL;
++	memset( &weaponEnt, 0, sizeof( weaponEnt ));
+ 	mouseYawControl = false;
+ 	prevCursorX = 0;
+ 	prevCursorY = 0;
+@@ -31,6 +32,8 @@ CMenuPlayerModelView::CMenuPlayerModelView() : CMenuBaseItem()
+ 	eOverrideMode = PMV_DONTCARE;
+ 	refdef.fov_x = 40.0f;
+ 	bDrawAsPlayer = true;
++	bTrackMouse = false;
++	szWeaponModel[0] = 0;
+ 	m_bRenderingScene = false;
+ 	m_bCanCaptureFocus = true;
+ }
+@@ -95,6 +98,32 @@ void CMenuPlayerModelView::VidInit()
+ 	ent->angles[1] = ent->curstate.angles[1] = 180.0f;
+ 
+ 	ent->player = bDrawAsPlayer; // yes, draw me as playermodel
++
++	memset( &weaponEnt.curstate, 0, sizeof( weaponEnt.curstate ));
++	memset( &weaponEnt.latched, 0, sizeof( weaponEnt.latched ));
++	weaponEnt.index = 2;
++	weaponEnt.curstate.number = 2;
++	weaponEnt.curstate.movetype = MOVETYPE_FOLLOW;
++	weaponEnt.curstate.aiment = 1;
++	weaponEnt.curstate.scale = 1.0f;
++	weaponEnt.curstate.framerate = 1.0f;
++	weaponEnt.curstate.effects |= EF_FULLBRIGHT;
++	weaponEnt.curstate.rendermode = kRenderNormal;
++	weaponEnt.curstate.renderamt = 255;
++}
++
++void CMenuPlayerModelView::SetWeaponModel( const char *path )
++{
++	if( path && path[0] )
++	{
++		Q_strncpy( szWeaponModel, path, sizeof( szWeaponModel ));
++		EngFuncs::SetModel( &weaponEnt, szWeaponModel );
++	}
++	else
++	{
++		szWeaponModel[0] = 0;
++		weaponEnt.model = NULL;
++	}
+ }
+ 
+ bool CMenuPlayerModelView::KeyUp( int key )
+@@ -245,8 +274,45 @@ void CMenuPlayerModelView::Draw()
+ 			prevCursorY = uiStatic.cursorY;
+ 		}
+ 
+-		// draw the player model
+-		if( ent && ent->model )
++		if( bTrackMouse && ent )
++		{
++			// Calculate normalized mouse position relative to operator center
++			float centerX = m_scPos.x + m_scSize.w * 0.5f;
++			float centerY = m_scPos.y + m_scSize.h * 0.38f;
++			float nx = bound( -1.0f, ( uiStatic.cursorX - centerX ) / ( gpGlobals->scrWidth * 0.45f ), 1.0f );
++			float ny = bound( -1.0f, ( uiStatic.cursorY - centerY ) / ( gpGlobals->scrHeight * 0.45f ), 1.0f );
++
++			// Face camera (180 deg) and turn smoothly toward mouse X (+/- 22 deg)
++			float targetYaw = 180.0f - nx * 22.0f;
++			float curYaw = ent->angles[1];
++			float diff = targetYaw - curYaw;
++			if( diff > 180.0f ) diff -= 360.0f;
++			if( diff < -180.0f ) diff += 360.0f;
++			curYaw += diff * 0.15f;
++			ent->angles[1] = ent->curstate.angles[1] = curYaw;
++
++			// Vertical aim pitch blend: 127 level, 108 slight up, 146 slight down
++			int pitchBlend = bound( 108, (int)( 127.0f + ny * 20.0f ), 146 );
++			ent->curstate.blending[0] = ent->latched.prevblending[0] = (byte)pitchBlend;
++			ent->curstate.blending[1] = ent->latched.prevblending[1] = 127;
++
++			for( int c = 0; c < 4; c++ )
++				ent->curstate.controller[c] = ent->latched.prevcontroller[c] = 127;
++
++			// Camera framing: hero medium-full shot so operator looks upright, grounded and directly at player
++			ent->origin[0] = ent->curstate.origin[0] = 34.0f / tan( DEG2RAD( refdef.fov_y / 2.0f ));
++			ent->origin[1] = ent->curstate.origin[1] = 0.0f;
++			ent->origin[2] = ent->curstate.origin[2] = -4.0f;
++		}
++
++		// Reload weapon model if Mod_FreeAll wiped it during map transition
++		if( szWeaponModel[0] && ( !weaponEnt.model || weaponEnt.model->type != mod_studio ) )
++		{
++			EngFuncs::SetModel( &weaponEnt, szWeaponModel );
++		}
++
++		// draw the player model (verify model->type == mod_studio so freed models never crash)
++		if( ent && ent->model && ent->model->type == mod_studio )
+ 		{
+ 			if( m_bRenderingScene )
+ 			{
+@@ -255,7 +321,24 @@ void CMenuPlayerModelView::Draw()
+ 			else
+ 			{
+ 				m_bRenderingScene = true;
++				ent->index = 1;
++				ent->curstate.number = 1;
+ 				EngFuncs::CL_CreateVisibleEntity( ET_NORMAL, ent );
++				if( weaponEnt.model && weaponEnt.model->type == mod_studio )
++				{
++					weaponEnt.index = 2;
++					weaponEnt.curstate.number = 2;
++					weaponEnt.curstate.movetype = MOVETYPE_FOLLOW;
++					weaponEnt.curstate.aiment = 1;
++					weaponEnt.curstate.rendermode = ent->curstate.rendermode;
++					weaponEnt.curstate.renderamt = ent->curstate.renderamt;
++					weaponEnt.curstate.renderfx = kRenderFxNone;
++					VectorCopy( ent->origin, weaponEnt.origin );
++					VectorCopy( ent->curstate.origin, weaponEnt.curstate.origin );
++					VectorCopy( ent->angles, weaponEnt.angles );
++					VectorCopy( ent->curstate.angles, weaponEnt.curstate.angles );
++					EngFuncs::CL_CreateVisibleEntity( ET_NORMAL, &weaponEnt );
++				}
+ 				EngFuncs::RenderScene( &refdef );
+ 				m_bRenderingScene = false;
+ 			}
+diff --git a/controls/PlayerModelView.h b/controls/PlayerModelView.h
+index c509484..6d44391 100644
+--- a/controls/PlayerModelView.h
++++ b/controls/PlayerModelView.h
+@@ -43,8 +43,12 @@ public:
+ 
+ 	ref_viewpass_t refdef;
+ 	cl_entity_t *ent;
++	cl_entity_t weaponEnt;
++	void SetWeaponModel( const char *path );
+ 
+ 	bool bDrawAsPlayer;
++	bool bTrackMouse;
++	char szWeaponModel[128];
+ 
+ 	enum
+ 	{
+diff --git a/controls/Slider.cpp b/controls/Slider.cpp
+index 1159ec9..0a262a7 100644
+--- a/controls/Slider.cpp
++++ b/controls/Slider.cpp
+@@ -195,15 +195,29 @@ void CMenuSlider::Draw( void )
+ 		* ( m_scSize.w - m_iSliderOutlineWidth - (m_scCenterBox.w) );
+ 
+ 
+-	UI_DrawRectangleExt( m_scPos.x + m_iSliderOutlineWidth / 2, m_scPos.y + m_iSliderOutlineWidth, m_scSize.w - m_iSliderOutlineWidth, m_scCenterBox.h, uiInputBgColor, m_iSliderOutlineWidth );
+-	if( eFocusAnimation == QM_HIGHLIGHTIFFOCUS && this == m_pParent->ItemAtCursor())
+-		UI_DrawPic( sliderX, m_scPos.y, m_scCenterBox.w, m_scSize.h, uiColorHelp, imgSlider );
+-	else
+-		UI_DrawPic( sliderX, m_scPos.y, m_scCenterBox.w, m_scSize.h, uiColorWhite, imgSlider );
+-
+-
+-	textHeight = m_scPos.y - (m_scChSize * 1.5f);
+-	UI_DrawString( font, m_scPos.x, textHeight, m_scSize.w, m_scChSize, szName, uiColorHelp, m_scChSize, eTextAlignment, textflags | ETF_FORCECOL );
++	bool hovered = ( this == m_pParent->ItemAtCursor() ) || m_iKeepSlider;
++	int trackH = Q_max( 4, (int)( 6 * uiStatic.scaleY ) );
++	int trackY = m_scPos.y + ( m_scSize.h - trackH ) / 2;
++	UI_FillRect( m_scPos.x, trackY, m_scSize.w, trackH, 0xFF202326 );
++	UI_FillRect( m_scPos.x, trackY, m_scSize.w, 1, 0xFF141618 );
++	UI_FillRect( m_scPos.x, trackY + trackH - 1, m_scSize.w, 1, 0xFF5A5F66 );
++
++	int fillW = sliderX - m_scPos.x + m_scCenterBox.w / 2;
++	if( fillW > 0 )
++		UI_FillRect( m_scPos.x + 1, trackY + 1, Q_min( m_scSize.w - 2, fillW ), trackH - 2, 0xCCFF9B14 );
++
++	int knobW = Q_max( 10, (int)( 12 * uiStatic.scaleX ) );
++	int knobH = Q_max( 16, (int)( 18 * uiStatic.scaleY ) );
++	int knobX = sliderX + ( m_scCenterBox.w - knobW ) / 2;
++	int knobY = m_scPos.y + ( m_scSize.h - knobH ) / 2;
++	UI_FillRect( knobX, knobY, knobW, knobH, hovered ? 0xFFFF9B14 : 0xFF585D64 );
++	UI_FillRect( knobX, knobY, knobW, 1, 0xFF888E96 );
++	UI_FillRect( knobX, knobY, 1, knobH, 0xFF888E96 );
++	UI_FillRect( knobX, knobY + knobH - 1, knobW, 1, 0xFF222528 );
++	UI_FillRect( knobX + knobW - 1, knobY, 1, knobH, 0xFF222528 );
++
++	textHeight = m_scPos.y - (int)( m_scChSize * 1.25f );
++	UI_DrawString( font, m_scPos.x, textHeight, m_scSize.w, m_scChSize, szName, 0xFFD0D5DC, m_scChSize, QM_LEFT, ETF_FORCECOL | ETF_NOSIZELIMIT );
+ }
+ 
+ void CMenuSlider::UpdateEditable()
+diff --git a/controls/SpinControl.cpp b/controls/SpinControl.cpp
+index 79bd960..79eabee 100644
+--- a/controls/SpinControl.cpp
++++ b/controls/SpinControl.cpp
+@@ -141,7 +141,7 @@ void CMenuSpinControl::Draw( void )
+ 		EngFuncs::DrawConsoleString( coord, szStatusText );
+ 	}
+ 
+-	int textHeight = m_scPos.y - (m_scChSize * 1.5f);
++	int textHeight = m_scPos.y - (int)(m_scChSize * 1.25f);
+ 	UI_DrawString( font, m_scPos.x - UI_OUTLINE_WIDTH, textHeight, m_scSize.w + UI_OUTLINE_WIDTH * 2, m_scChSize, szName, uiColorHelp, m_scChSize, QM_LEFT, textflags | ETF_FORCECOL | ETF_NOSIZELIMIT );
+ 
+ 	// calculate size and position for the arrows
+@@ -167,7 +167,7 @@ void CMenuSpinControl::Draw( void )
+ 	else
+ 	{
+ 		// draw the background
+-		UI_FillRect( scCenterPos, scCenterBox, uiColorBlack );
++		UI_FillRect( scCenterPos, scCenterBox, 0xF5222528 );
+ 
+ 		// draw the rectangle
+ 		UI_DrawRectangle( scCenterPos, scCenterBox, uiInputFgColor );
+diff --git a/controls/Switch.cpp b/controls/Switch.cpp
+index e3e0063..d472883 100644
+--- a/controls/Switch.cpp
++++ b/controls/Switch.cpp
+@@ -248,8 +248,9 @@ void CMenuSwitch::Draw( void )
+ 			uint tempflags = textflags;
+ 			tempflags |= ETF_FORCECOL;
+ 
+-			UI_FillRect( m_switches[i].pt, sz, selectColor );
+-			UI_DrawString( font, pt, sz, m_switches[i].name, iFgTextColor, m_scChSize, eTextAlignment, tempflags );
++			UI_FillRect( m_switches[i].pt, sz, 0xFF484C52 );
++			UI_FillRect( m_switches[i].pt.x, m_switches[i].pt.y, sz.w, 2, 0xFFFF9B14 );
++			UI_DrawString( font, pt, sz, m_switches[i].name, 0xFFFFFFFF, m_scChSize, eTextAlignment, tempflags );
+ 		}
+ 		else
+ 		{
+diff --git a/controls/Table.cpp b/controls/Table.cpp
+index 902da98..3afc761 100644
+--- a/controls/Table.cpp
++++ b/controls/Table.cpp
+@@ -20,7 +20,7 @@ GNU General Public License for more details.
+ #include "Utils.h"
+ #include "Scissor.h"
+ 
+-#define HEADER_HEIGHT_FRAC 1.75f
++#define HEADER_HEIGHT_FRAC 1.55f
+ 
+ CMenuTable::CMenuTable() : BaseClass(),
+ 	bFramedHintText( false ),
+@@ -47,7 +47,7 @@ void CMenuTable::VidInit()
+ {
+ 	BaseClass::VidInit();
+ 
+-	iBackgroundColor.SetDefault( uiColorBlack );
++	iBackgroundColor.SetDefault( 0xF5222528 );
+ 	iHeaderColor.SetDefault( uiColorHelp );
+ 	colorStroke.SetDefault( uiInputFgColor );
+ 	iStrokeFocusedColor.SetDefault( uiInputTextColor );
+@@ -93,7 +93,7 @@ void CMenuTable::VidInit()
+ 
+ 	// then determine arrow position and sizes
+ 	if( bShowScrollBar )
+-		arrow.w = arrow.h = 24;
++		arrow.w = arrow.h = 18;
+ 	else
+ 		arrow.w = arrow.h = 0;
+ 	arrow = arrow.Scale();
+@@ -485,8 +485,10 @@ void CMenuTable::DrawLine( Point p, const char **psz, size_t size, uint textColo
+ 			}
+ 		}
+ 
+-		UI_DrawString( font, pt, sz, psz[i], textColor, m_scChSize,
+-			m_pModel->GetAlignmentForColumn( i ), textflags );
++		Point hpt( pt.x + (int)( 8 * uiStatic.scaleX ), pt.y );
++		Size hsz( Q_max( 0, sz.w - (int)( 12 * uiStatic.scaleX ) ), sz.h );
++		UI_DrawString( font, hpt, hsz, psz[i], 0xFFD0D5DC, m_scChSize,
++			m_pModel->GetAlignmentForColumn( i ), textflags & ~ETF_SHADOW );
+ 	}
+ }
+ 
+@@ -542,9 +544,13 @@ void CMenuTable::DrawLine( Point p, int line, uint textColor, bool forceCol, uin
+ 		switch( type )
+ 		{
+ 		case CELL_TEXT:
+-			UI_DrawString( font, p, sz, str, textColor, m_scChSize, m_pModel->GetAlignmentForColumn( i ),
+-				textflags | ( m_pModel->IsCellTextWrapped( line, i ) ? 0 : ETF_NOSIZELIMIT ) );
++		{
++			Point cpt( p.x + (int)( 8 * uiStatic.scaleX ), p.y );
++			Size csz( Q_max( 0, sz.w - (int)( 12 * uiStatic.scaleX ) ), sz.h );
++			UI_DrawString( font, cpt, csz, str, textColor, m_scChSize, m_pModel->GetAlignmentForColumn( i ),
++				( textflags & ~ETF_SHADOW ) | ( m_pModel->IsCellTextWrapped( line, i ) ? 0 : ETF_NOSIZELIMIT ) );
+ 			break;
++		}
+ 		case CELL_IMAGE_ADDITIVE:
+ 		case CELL_IMAGE_DEFAULT:
+ 		case CELL_IMAGE_HOLES:
+@@ -605,7 +611,7 @@ void CMenuTable::DrawLine( Point p, int line, uint textColor, bool forceCol, uin
+ void CMenuTable::Draw()
+ {
+ 	int i, y;
+-	int selColor = PackRGB( 80, 56, 24 );
++	int selColor = 0xFFFF9B14; // VGUI2 solid orange highlight
+ 	int upFocus, downFocus, scrollbarFocus;
+ 
+ 	// HACKHACK: recalc iNumRows, to be not greater than iNumItems
+@@ -759,11 +765,8 @@ void CMenuTable::Draw()
+ 		{
+ 			if( i == iCurItem )
+ 			{
+-				if( eFocusAnimation == QM_HIGHLIGHTIFFOCUS )
+-					color = colorFocus;
+-				else if( eFocusAnimation == QM_PULSEIFFOCUS )
+-					color = PackAlpha( colorBase, 255 * (0.5f + 0.5f * sin( (float)uiStatic.realTime / UI_PULSE_DIVISOR )));
+-
++				color = 0xFF101010; // dark text on VGUI2 orange selection bar
++				forceCol = true;
+ 				fillColor = selColor;
+ 			}
+ 			else if( i == iHighlight )
+diff --git a/font/FontManager.cpp b/font/FontManager.cpp
+index 971cab5..40d4932 100644
+--- a/font/FontManager.cpp
++++ b/font/FontManager.cpp
+@@ -30,7 +30,7 @@ GNU General Public License for more details.
+ #include "BitmapFont.h"
+ #include "utflib.h"
+ 
+-#define DEFAULT_MENUFONT "Trebuchet MS"
++#define DEFAULT_MENUFONT "Tahoma"
+ #define DEFAULT_CONFONT  "Tahoma"
+ #define DEFAULT_WEIGHT   500
+ 
+diff --git a/font/FontRenderer.h b/font/FontRenderer.h
+index 6760f6a..8c150a3 100644
+--- a/font/FontRenderer.h
++++ b/font/FontRenderer.h
+@@ -12,22 +12,22 @@ enum EFontFlags
+ 	FONT_STRIKEOUT = 1 << 2
+ };
+ #define UI_CONSOLE_CHAR_WIDTH	9
+-#define UI_CONSOLE_CHAR_HEIGHT  18
++#define UI_CONSOLE_CHAR_HEIGHT  16
+ 
+-#define UI_SMALL_CHAR_WIDTH		10
+-#define UI_SMALL_CHAR_HEIGHT	20
++#define UI_SMALL_CHAR_WIDTH		8
++#define UI_SMALL_CHAR_HEIGHT	16
+ 
+-#define UI_SMALLER_CHAR_WIDTH	8
+-#define UI_SMALLER_CHAR_HEIGHT	16
++#define UI_SMALLER_CHAR_WIDTH	7
++#define UI_SMALLER_CHAR_HEIGHT	14
+ 
+ #define UI_TINY_CHAR_WIDTH		6
+ #define UI_TINY_CHAR_HEIGHT		12
+ 
+-#define UI_MED_CHAR_WIDTH		13
+-#define UI_MED_CHAR_HEIGHT		26
++#define UI_MED_CHAR_WIDTH		9
++#define UI_MED_CHAR_HEIGHT		17
+ 
+-#define UI_BIG_CHAR_WIDTH		20
+-#define UI_BIG_CHAR_HEIGHT		40
++#define UI_BIG_CHAR_WIDTH		13
++#define UI_BIG_CHAR_HEIGHT		24
+ 
+ enum EFontSizes
+ {
+diff --git a/menus/AdvancedControls.cpp b/menus/AdvancedControls.cpp
+index 3424ce3..a2748ce 100644
+--- a/menus/AdvancedControls.cpp
++++ b/menus/AdvancedControls.cpp
+@@ -146,60 +146,40 @@ void CAdvancedControls::_Init( void )
+ {
+ 	banner.SetPicture( ART_BANNER );
+ 
+-	done.szName = L( "Done" );
+-	done.SetPicture( PC_DONE );
+-	done.onReleased = VoidCb( &CAdvancedControls::SaveAndPopMenu );
+-	done.SetCoord( 72, 710 );
+-
+-	crosshair.SetNameAndStatus( L( "Crosshair" ), L( "Enable the weapon aiming crosshair" ) );
+-	crosshair.iFlags |= QMF_NOTIFY;
+-	crosshair.SetCoord( 72, 260 );
++	AddItem( banner );
++	AddButton( "OK", nullptr, PC_OK, VoidCb( &CAdvancedControls::SaveAndPopMenu ) );
++	AddButton( "Cancel", nullptr, PC_CANCEL, VoidCb( &CAdvancedControls::Hide ) );
+ 
+-	invertMouse.SetNameAndStatus( L( "GameUI_ReverseMouse" ), L( "GameUI_ReverseMouseLabel" ) );
+-	invertMouse.iFlags |= QMF_NOTIFY;
++	invertMouse.SetNameAndStatus( L( "GameUI_ReverseMouse" ), NULL );
+ 	invertMouse.onChanged = VoidCb( &CAdvancedControls::PitchInvert );
+-	invertMouse.SetCoord( 72, 310 );
++	invertMouse.SetCoord( 100, 160 );
+ 
+-	mouseLook.SetNameAndStatus( L( "GameUI_MouseLook" ), L( "GameUI_MouseLookLabel" ) );
+-	mouseLook.iFlags |= QMF_NOTIFY;
++	lookFilter.SetNameAndStatus( L( "GameUI_MouseFilter" ), NULL );
++	lookFilter.SetCoord( 100, 210 );
++
++	mouseLook.SetNameAndStatus( L( "GameUI_MouseLook" ), NULL );
+ 	SET_EVENT( mouseLook.onChanged,
+ 		((CAdvancedControls*)pSelf->Parent())->ToggleLookCheckboxes( true ) );
+-	mouseLook.SetCoord( 72, 360 );
++	mouseLook.SetCoord( 100, 260 );
++
++	lookSpring.SetNameAndStatus( L( "Look spring" ), NULL );
++	lookSpring.SetCoord( 100, 310 );
+ 
+-	lookSpring.SetNameAndStatus( L( "Look spring" ), L( "Causes the screen to 'spring' back to looking straight ahead when you move forward" ) );
+-	lookSpring.iFlags |= QMF_NOTIFY;
+-	lookSpring.SetCoord( 72, 410 );
++	lookStrafe.SetNameAndStatus( L( "Look strafe" ), NULL );
++	lookStrafe.SetCoord( 100, 360 );
+ 
+-	lookStrafe.SetNameAndStatus( L( "Look strafe" ), L( "In combination with your mouse look modifier, causes left-right movements to strafe instead of turn" ) );
+-	lookStrafe.iFlags |= QMF_NOTIFY;
+-	lookStrafe.SetCoord( 72, 460 );
++	autoaim.SetNameAndStatus( L( "GameUI_AutoAim" ), NULL );
++	autoaim.SetCoord( 100, 410 );
+ 
+-	lookFilter.SetNameAndStatus( L( "GameUI_MouseFilter" ), L( "GameUI_MouseFilterLabel" ) );
+-	lookFilter.iFlags |= QMF_NOTIFY;
+-	lookFilter.SetCoord( 72, 510 );
++	rawinput.SetNameAndStatus( L( "GameUI_RawInput" ), NULL );
++	rawinput.SetCoord( 520, 160 );
+ 
+-	autoaim.SetNameAndStatus( L( "GameUI_AutoAim" ), L( "GameUI_AutoaimLabel" ) );
+-	autoaim.iFlags |= QMF_NOTIFY;
+-	autoaim.SetCoord( 72, 560 );
+-	
+-	rawinput.SetNameAndStatus( L( "GameUI_RawInput" ), L( "GameUI_RawInputLabel" ) );
+-	rawinput.iFlags |= QMF_NOTIFY;
+-	rawinput.SetCoord( 72, 610 );
++	crosshair.SetNameAndStatus( L( "Crosshair" ), NULL );
++	crosshair.SetCoord( 520, 210 );
+ 
+ 	sensitivity.szName = L( "GameUI_MouseSensitivity" );
+ 	sensitivity.Setup( 0.0, 20.0f, 0.1 );
+-	sensitivity.SetCoord( 72, 690 );
+-
+-	inputDev.SetNameAndStatus( L( "Input devices" ), L( "Toggle mouse, touch controls" ) );
+-	inputDev.onReleased = UI_InputDevices_Menu;
+-	inputDev.iFlags |= QMF_NOTIFY;
+-	if( CL_IsActive() && !EngFuncs::GetCvarFloat( "host_serverstate" ))
+-		inputDev.SetGrayed( true );
+-	inputDev.SetCoord( 72, 210 );
+-
+-	AddItem( banner );
+-	AddItem( done );
+-	AddItem( inputDev );
++	sensitivity.SetRect( 520, 300, 320, 20 );
+ 	AddItem( crosshair );
+ 	AddItem( invertMouse );
+ 	AddItem( mouseLook );
+diff --git a/menus/Audio.cpp b/menus/Audio.cpp
+index 152fb47..90a878c 100644
+--- a/menus/Audio.cpp
++++ b/menus/Audio.cpp
+@@ -120,32 +120,32 @@ void CMenuAudio::_Init( void )
+ 	soundVolume.szName = L( "GameUI_SoundEffectVolume" );
+ 	soundVolume.Setup( 0.0, 1.0, 0.05f );
+ 	soundVolume.onChanged = CMenuEditable::WriteCvarCb;
+-	soundVolume.SetCoord( 320, 280 );
++	soundVolume.SetCoord( 100, 180 );
+ 	soundVolume.size.w = 300;
+ 
+ 	musicVolume.szName = L( "GameUI_MP3Volume" );
+ 	musicVolume.Setup( 0.0, 1.0, 0.05f );
+ 	musicVolume.onChanged = CMenuEditable::WriteCvarCb;
+-	musicVolume.SetCoord( 320, 340 );
++	musicVolume.SetCoord( 100, 260 );
+ 	musicVolume.size.w = 300;
+ 
+ 	suitVolume.szName = L( "GameUI_HEVSuitVolume" );
+ 	suitVolume.Setup( 0.0, 1.0, 0.05f );
+ 	suitVolume.onChanged = CMenuEditable::WriteCvarCb;
+-	suitVolume.SetCoord( 320, 400 );
++	suitVolume.SetCoord( 100, 340 );
+ 	suitVolume.size.w = 300;
+ 
+ 	noDSP.szName = L( "Disable DSP effects" );
+ 	noDSP.onChanged = CMenuEditable::WriteCvarCb;
+-	noDSP.SetCoord( 320, 460 );
++	noDSP.SetCoord( 520, 180 );
+ 
+ 	useAlphaDSP.szName = L( "Use Alpha DSP effects" );
+ 	useAlphaDSP.onChanged = CMenuEditable::WriteCvarCb;
+-	useAlphaDSP.SetCoord( 320, 510 );
++	useAlphaDSP.SetCoord( 520, 240 );
+ 
+ 	muteFocusLost.szName = L( "Mute when inactive" );
+ 	muteFocusLost.onChanged = CMenuEditable::WriteCvarCb;
+-	muteFocusLost.SetCoord( 320, 560 );
++	muteFocusLost.SetCoord( 520, 300 );
+ 
+ 	vibrationEnable.szName = L( "Enable vibration" );
+ 	vibrationEnable.iMask = (QMF_GRAYED|QMF_INACTIVE);
+@@ -160,15 +160,15 @@ void CMenuAudio::_Init( void )
+ 	vibration.SetCoord( 700, 560 );
+ 
+ 	AddItem( banner );
+-	AddButton( L( "Done" ), nullptr, PC_DONE, VoidCb( &CMenuAudio::SaveAndPopMenu ));
++	AddButton( "OK", nullptr, PC_OK, VoidCb( &CMenuAudio::SaveAndPopMenu ));
++	AddButton( "Cancel", nullptr, PC_CANCEL, VoidCb( &CMenuAudio::Hide ));
+ 	AddItem( soundVolume );
+ 	AddItem( musicVolume );
+ 	AddItem( suitVolume );
+ 	AddItem( noDSP );
+ 	AddItem( useAlphaDSP );
+ 	AddItem( muteFocusLost );
+-	AddItem( vibrationEnable );
+-	AddItem( vibration );
++
+ }
+ 
+ void CMenuAudio::_VidInit( )
+diff --git a/menus/Controls.cpp b/menus/Controls.cpp
+index afd48c9..2d22ae3 100644
+--- a/menus/Controls.cpp
++++ b/menus/Controls.cpp
+@@ -230,7 +230,7 @@ void CMenuControls::_Init( void )
+ {
+ 	banner.SetPicture( ART_BANNER );
+ 
+-	keysList.SetRect( 360, 230, -20, 465 );
++	keysList.SetRect( 78, 134, 868, 460 );
+ 	keysList.SetModel( &keysListModel );
+ 	keysList.SetupColumn( 0, L( "GameUI_Action" ), 0.50f );
+ 	keysList.SetupColumn( 1, L( "GameUI_KeyButton" ), 0.25f );
+@@ -244,12 +244,11 @@ void CMenuControls::_Init( void )
+ 	msgBox2.Link( this );
+ 
+ 	AddItem( banner );
+-	AddButton( L( "GameUI_UseDefaults" ), nullptr, PC_USE_DEFAULTS, msgBox2.MakeOpenEvent( ));
+-	AddButton( L( "Adv. Controls" ), nullptr, PC_ADV_CONTROLS, UI_AdvControls_Menu );
+-	AddButton( L( "Touch" ), L( "Change touch settings and buttons" ), PC_TOUCH, UI_Touch_Menu );
+-	AddButton( L( "GameUI_Joystick" ), L( "Change gamepad axis and button settings" ), PC_GAMEPAD, UI_GamePad_Menu );
+-	AddButton( L( "GameUI_OK" ), nullptr, PC_OK, VoidCb( &CMenuControls::SaveAndPopMenu ));
+-	AddButton( L( "GameUI_Cancel" ), nullptr, PC_CANCEL, VoidCb( &CMenuControls::Cancel ));
++	AddButton( "Use Defaults", nullptr, PC_USE_DEFAULTS, msgBox2.MakeOpenEvent( ));
++	AddButton( "Edit key", nullptr, PC_OK, VoidCb( &CMenuControls::EnterGrabMode ));
++	AddButton( "Clear Key", nullptr, PC_DELETE, VoidCb( &CMenuControls::UnbindEntry ));
++	AddButton( "OK", nullptr, PC_OK, VoidCb( &CMenuControls::SaveAndPopMenu ));
++	AddButton( "Cancel", nullptr, PC_CANCEL, VoidCb( &CMenuControls::Cancel ));
+ 	AddItem( keysList );
+ }
+ 
+diff --git a/menus/CreateGame.cpp b/menus/CreateGame.cpp
+index 237a633..c89f440 100644
+--- a/menus/CreateGame.cpp
++++ b/menus/CreateGame.cpp
+@@ -308,11 +308,10 @@ void CMenuCreateGame::_VidInit()
+ 	// 	nat.Hide();
+ 	// else nat.Show();
+ 
+-	mapsList.SetRect( 590, 230, -20, 465 );
+-
+-	hostName.SetRect( 350, 260, 205, 32 );
+-	maxClients.SetRect( 350, 360, 205, 32 );
+-	password.SetRect( 350, 460, 205, 32 );
++	hostName.SetRect( 100, 175, 280, 32 );
++	maxClients.SetRect( 100, 275, 280, 32 );
++	password.SetRect( 100, 375, 280, 32 );
++	mapsList.SetRect( 430, 134, 514, 460 );
+ }
+ 
+ void CMenuCreateGame::Show()
+diff --git a/menus/GameOptions.cpp b/menus/GameOptions.cpp
+index 202e98b..4486787 100644
+--- a/menus/GameOptions.cpp
++++ b/menus/GameOptions.cpp
+@@ -111,7 +111,7 @@ void CMenuGameOptions::_Init( void )
+ 	maxFPS.SetNameAndStatus( L( "FPS limit" ), L( "Cap your game frame rate" ));
+ 	maxFPS.Setup( 20, 500, 20 );
+ 	maxFPS.LinkCvar( "fps_max", CMenuEditable::CVAR_VALUE );
+-	maxFPS.SetRect( 360, 260, 220, 32 );
++	maxFPS.SetRect( 100, 180, 240, 28 );
+ 
+ 	//hand.SetNameAndStatus( "Use left hand", "Draw gun at left side" );
+ 	//hand.LinkCvar( "cl_righthand" );
+@@ -119,23 +119,23 @@ void CMenuGameOptions::_Init( void )
+ 
+ 	allowDownload.SetNameAndStatus( L( "Allow download" ), L( "Allow download of files from servers" ) );
+ 	allowDownload.LinkCvar( "cl_allowdownload" );
+-	allowDownload.SetCoord( 360, 315 );
++	allowDownload.SetCoord( 100, 245 );
+ 
+ 	allowConsole.SetNameAndStatus( L( "Enable developer console" ), L( "Turns on console when engine was run without -console or -dev parameter" ));
+-	allowConsole.SetCoord( 360, 365 );
++	allowConsole.SetCoord( 100, 295 );
+ 	allowConsole.onReleased.SetCommand( false, "ui_allowconsole\n" );
+ 
+-	cmdrate.SetRect( 600, 470, 200, 32 );
++	cmdrate.SetRect( 540, 180, 220, 28 );
+ 	cmdrate.Setup( 20, 60, 5 );
+ 	cmdrate.LinkCvar( "cl_cmdrate", CMenuEditable::CVAR_VALUE );
+ 	cmdrate.SetNameAndStatus( L( "Command rate (cl_cmdrate)" ), L( "How many commands sent to server per second" ) );
+ 
+-	updaterate.SetRect( 600, 570, 200, 32 );
++	updaterate.SetRect( 540, 265, 220, 28 );
+ 	updaterate.Setup( 20, 100, 5 );
+ 	updaterate.LinkCvar( "cl_updaterate", CMenuEditable::CVAR_VALUE );
+ 	updaterate.SetNameAndStatus( L( "Update rate (cl_updaterate)" ), L( "How many updates sent from server per second" ) );
+ 
+-	rate.SetRect( 600, 670, 200, 32 );
++	rate.SetRect( 540, 350, 220, 28 );
+ 	rate.Setup( 2500, 90000, 500 );
+ 	rate.LinkCvar( "rate", CMenuEditable::CVAR_VALUE );
+ 	rate.SetNameAndStatus( L( "Network speed (rate)" ), L( "Limit traffic (bytes per second)" ) );
+@@ -144,9 +144,9 @@ void CMenuGameOptions::_Init( void )
+ 	networkMode.szName = L( "Select network mode:" );
+ 	networkMode.colorBase = uiColorHelp;
+ 	networkMode.SetCharSize( QM_BIGFONT );
+-	networkMode.SetRect( 77, 430, 400, 32 );
++	networkMode.SetRect( 100, 360, 400, 32 );
+ 
+-	normal.SetRect( 77, 480, 32, 32 );
++	normal.SetRect( 100, 410, 32, 32 );
+ 	normal.szName = L( "Normal internet connection" ); 	// Такая строка где-то уже была, поэтому в отдельный файл НЕ ВЫНОШУ !
+ 	SET_EVENT_MULTI( normal.onChanged,
+ 	{
+@@ -154,7 +154,7 @@ void CMenuGameOptions::_Init( void )
+ 		((CMenuCheckBox*)pSelf)->bChecked = true;
+ 	});
+ 
+-	dsl.SetRect( 77, 530, 32, 32 );
++	dsl.SetRect( 100, 460, 32, 32 );
+ 	dsl.szName = L( "DSL or PPTP with limited packet size" );	// И такое тоже уже было !
+ 	SET_EVENT_MULTI( dsl.onChanged,
+ 	{
+@@ -163,7 +163,7 @@ void CMenuGameOptions::_Init( void )
+ 	});
+ 
+ 
+-	slowest.SetRect( 77, 580, 32, 32 );
++	slowest.SetRect( 100, 510, 32, 32 );
+ 	slowest.szName = L( "Slow connection mode (64kbps)" );	// Было, повтор !
+ 	SET_EVENT_MULTI( slowest.onChanged,
+ 	{
+diff --git a/menus/Main.cpp b/menus/Main.cpp
+index 06f0bab..2b1cf77 100644
+--- a/menus/Main.cpp
++++ b/menus/Main.cpp
+@@ -30,6 +30,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ #include "gameinfo.h"
+ #include "AnimatedBanner.h"
+ #include "MovieBanner.h"
++#include "PlayerModelView.h"
++#include <stdio.h>
++#include <stdlib.h>
++#include <initializer_list>
+ 
+ #define ART_MINIMIZE_N	"gfx/shell/min_n"
+ #define ART_MINIMIZE_F	"gfx/shell/min_f"
+@@ -38,6 +42,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ #define ART_CLOSEBTN_F	"gfx/shell/cls_f"
+ #define ART_CLOSEBTN_D	"gfx/shell/cls_d"
+ 
++static const char *g_bgModels[] = { "gign", "sas", "urban", "gsg9", "leet", "terror", "arctic", "guerilla" };
++static const int g_bgModelCT = 4;
++struct bg_weapon_t { const char *id; const char *label; const char *mdl; int seq; };
++static const bg_weapon_t g_bgWeapons[] = {
++	{ "m4a1",   "M4A1",   "models/p_m4a1.mdl",   13 },
++	{ "ak47",   "AK-47",  "models/p_ak47.mdl",   80 },
++	{ "awp",    "AWP",    "models/p_awp.mdl",    33 },
++	{ "deagle", "DEAGLE", "models/p_deagle.mdl", 19 },
++	{ "mp5",    "MP5",    "models/p_mp5.mdl",    39 },
++	{ "knife",  "KNIFE",  "models/p_knife.mdl",  75 }
++};
++
+ class CMenuMain: public CMenuFramework
+ {
+ public:
+@@ -49,9 +65,16 @@ private:
+ 	void _Init() override;
+ 	void _VidInit( ) override;
+ 	void Think() override;
++	void Draw() override;
+ 
+ 	void VidInit(bool connected);
+ 
++	void CycleBgMap();
++	void CycleBgModel();
++	void CycleBgWeapon();
++	void UpdateBgLabels();
++	void ApplyBgModel();
++
+ 	void QuitDialogCb();
+ 	void DisconnectCb();
+ 	void DisconnectDialogCb();
+@@ -74,6 +97,15 @@ private:
+ 	CMenuPicButton	previews;
+ 	CMenuPicButton	quit;
+ 
++	CMenuPlayerModelView view;
++	CMenuPicButton bgMapBtn;
++	CMenuPicButton bgModelBtn;
++	CMenuPicButton bgWeaponBtn;
++	char bgMapLabel[96];
++	char bgModelLabel[96];
++	char bgWeaponLabel[96];
++	bool modelDirty;
++
+ 	// buttons on top right. Maybe should be drawn if fullscreen == 1?
+ 	CMenuBitmap	minimizeBtn;
+ 	CMenuBitmap	quitButton;
+@@ -85,6 +117,114 @@ private:
+ 	bool bCustomGame;
+ };
+ 
++void CMenuMain::UpdateBgLabels()
++{
++	const char *mdl = EngFuncs::GetCvarString( "ui_bg_model" );
++	int idx = 0;
++	for( int i = 0; i < (int)ARRAYSIZE( g_bgModels ); i++ )
++		if( !strcmp( g_bgModels[i], mdl )) idx = i;
++
++	const char *wpn = EngFuncs::GetCvarString( "ui_bg_weapon" );
++	int widx = 0;
++	for( int i = 0; i < (int)ARRAYSIZE( g_bgWeapons ); i++ )
++		if( !strcmp( g_bgWeapons[i].id, wpn )) widx = i;
++
++	snprintf( bgMapLabel, sizeof( bgMapLabel ), "Map: %s", EngFuncs::GetCvarString( "ui_bg_map" ));
++	snprintf( bgModelLabel, sizeof( bgModelLabel ), "Agent: %s (%s)", g_bgModels[idx], idx < g_bgModelCT ? "CT" : "T" );
++	snprintf( bgWeaponLabel, sizeof( bgWeaponLabel ), "Weapon: %s", g_bgWeapons[widx].label );
++	bgMapBtn.SetNameAndStatus( bgMapLabel, NULL );
++	bgModelBtn.SetNameAndStatus( bgModelLabel, NULL );
++	bgWeaponBtn.SetNameAndStatus( bgWeaponLabel, NULL );
++}
++
++void CMenuMain::ApplyBgModel()
++{
++	if( !view.ent ) return;
++
++	const char *mdl = EngFuncs::GetCvarString( "ui_bg_model" );
++	char path[128];
++	snprintf( path, sizeof( path ), "models/player/%s/%s.mdl", mdl, mdl );
++	EngFuncs::SetModel( view.ent, path );
++
++	const char *wpn = EngFuncs::GetCvarString( "ui_bg_weapon" );
++	int widx = 0;
++	for( int i = 0; i < (int)ARRAYSIZE( g_bgWeapons ); i++ )
++		if( !strcmp( g_bgWeapons[i].id, wpn )) widx = i;
++
++	view.ent->curstate.sequence = g_bgWeapons[widx].seq;
++	view.ent->curstate.gaitsequence = 1; // idle1 standing legs
++	view.ent->curstate.blending[0] = 127;
++	view.ent->curstate.blending[1] = 127;
++	view.ent->latched.prevblending[0] = 127;
++	view.ent->latched.prevblending[1] = 127;
++	view.SetWeaponModel( g_bgWeapons[widx].mdl );
++	modelDirty = false;
++}
++
++void CMenuMain::CycleBgModel()
++{
++	const char *mdl = EngFuncs::GetCvarString( "ui_bg_model" );
++	int idx = 0;
++	for( int i = 0; i < (int)ARRAYSIZE( g_bgModels ); i++ )
++		if( !strcmp( g_bgModels[i], mdl )) idx = i;
++
++	idx = ( idx + 1 ) % ARRAYSIZE( g_bgModels );
++	EngFuncs::CvarSetString( "ui_bg_model", g_bgModels[idx] );
++	EngFuncs::CvarSetString( "ui_bg_weapon", idx < g_bgModelCT ? "m4a1" : "ak47" );
++	modelDirty = true;
++	UpdateBgLabels();
++}
++
++void CMenuMain::CycleBgWeapon()
++{
++	const char *wpn = EngFuncs::GetCvarString( "ui_bg_weapon" );
++	int widx = 0;
++	for( int i = 0; i < (int)ARRAYSIZE( g_bgWeapons ); i++ )
++		if( !strcmp( g_bgWeapons[i].id, wpn )) widx = i;
++
++	widx = ( widx + 1 ) % ARRAYSIZE( g_bgWeapons );
++	EngFuncs::CvarSetString( "ui_bg_weapon", g_bgWeapons[widx].id );
++	modelDirty = true;
++	UpdateBgLabels();
++}
++
++void CMenuMain::CycleBgMap()
++{
++	int num = 0;
++	char **files = EngFuncs::GetFilesList( "maps/*.bsp", &num, true );
++	if( !files || num <= 0 ) return;
++
++	const char *cur = EngFuncs::GetCvarString( "ui_bg_map" );
++	int curIdx = -1;
++	char name[64];
++
++	for( int i = 0; i < num; i++ )
++	{
++		const char *s = strrchr( files[i], '/' );
++		s = s ? s + 1 : files[i];
++		snprintf( name, sizeof( name ), "%s", s );
++		char *dot = strrchr( name, '.' );
++		if( dot ) *dot = 0;
++		if( !strcmp( name, cur )) curIdx = i;
++	}
++
++	const char *s = strrchr( files[( curIdx + 1 ) % num], '/' );
++	s = s ? s + 1 : files[( curIdx + 1 ) % num];
++	snprintf( name, sizeof( name ), "%s", s );
++	char *dot = strrchr( name, '.' );
++	if( dot ) *dot = 0;
++
++	EngFuncs::CvarSetString( "ui_bg_map", name );
++	UpdateBgLabels();
++
++	if( !CL_IsActive( ))
++	{
++		char cmd[96];
++		snprintf( cmd, sizeof( cmd ), "map_background %s\n", name );
++		EngFuncs::ClientCmd( false, cmd );
++	}
++}
++
+ void CMenuMain::QuitDialogCb()
+ {
+ 	if( CL_IsActive() && EngFuncs::GetCvarFloat( "host_serverstate" ) && EngFuncs::GetCvarFloat( "maxplayers" ) == 1.0f )
+@@ -174,8 +314,38 @@ void CMenuMain::_Init( void )
+ 		bCustomGame = true;
+ 	else bCustomGame = false;
+ 
++	EngFuncs::CvarRegister( "ui_bg_map", "de_dust2", FCVAR_ARCHIVE );
++	EngFuncs::CvarRegister( "ui_bg_model", "gign", FCVAR_ARCHIVE );
++	EngFuncs::CvarRegister( "ui_bg_weapon", "m4a1", FCVAR_ARCHIVE );
++	modelDirty = true;
++
++	view.backgroundColor = 0x00000000u;
++	view.colorStroke = 0x00000000u;
++	view.colorFocus = 0x00000000u;
++	view.m_bCanCaptureFocus = false;
++	view.bDrawAsPlayer = false;
++	view.bTrackMouse = true;
++	view.eOverrideMode = CMenuPlayerModelView::PMV_SHOWMODEL;
++	view.eFocusAnimation = QM_NOFOCUSANIMATION;
++
++	bgMapBtn.onReleased = VoidCb( &CMenuMain::CycleBgMap );
++	bgModelBtn.onReleased = VoidCb( &CMenuMain::CycleBgModel );
++	bgWeaponBtn.onReleased = VoidCb( &CMenuMain::CycleBgWeapon );
++	bgMapBtn.iFlags |= QMF_NOTIFY;
++	bgModelBtn.iFlags |= QMF_NOTIFY;
++	bgWeaponBtn.iFlags |= QMF_NOTIFY;
++	for( CMenuPicButton *b : { &bgMapBtn, &bgModelBtn, &bgWeaponBtn } )
++	{
++		b->bPulse = true;
++		b->colorBase = 0xFFE6E9EC;
++		b->colorFocus = 0xFFFF9B14;
++		b->SetCharSize( QM_SMALLFONT );
++		b->eTextAlignment = QM_LEFT;
++	}
++	UpdateBgLabels();
++
+ 	// console
+-	console.SetNameAndStatus( L( "GameUI_Console" ), NULL );
++	console.SetNameAndStatus( "Console", NULL );
+ 	console.iFlags |= QMF_NOTIFY;
+ 	console.SetPicture( PC_CONSOLE );
+ 	console.SetVisibility( gpGlobals->developer );
+@@ -185,20 +355,20 @@ void CMenuMain::_Init( void )
+ 		EngFuncs::KEY_SetDest( KEY_CONSOLE );
+ 	});
+ 
+-	resumeGame.SetNameAndStatus( L( "GameUI_GameMenu_ResumeGame" ), L( "StringsList_188" ) );
++	resumeGame.SetNameAndStatus( "Resume Game", NULL );
+ 	resumeGame.SetPicture( PC_RESUME_GAME );
+ 	resumeGame.iFlags |= QMF_NOTIFY;
+ 	resumeGame.onReleased = UI_CloseMenu;
+ 
+-	disconnect.SetNameAndStatus( L( "GameUI_GameMenu_Disconnect" ), L( "Disconnect from server." ) );
++	disconnect.SetNameAndStatus( "Disconnect", NULL );
+ 	disconnect.SetPicture( PC_DISCONNECT );
+ 	disconnect.iFlags |= QMF_NOTIFY;
+ 	disconnect.onReleased = VoidCb( &CMenuMain::DisconnectDialogCb );
+ 
+-	newGame.SetNameAndStatus( L( "GameUI_NewGame" ), L( "StringsList_189" ) );
++	newGame.SetNameAndStatus( "New Game", NULL );
+ 	newGame.SetPicture( PC_NEW_GAME );
+ 	newGame.iFlags |= QMF_NOTIFY;
+-	newGame.onReleased = UI_NewGame_Menu;
++	newGame.onReleased = UI_CreateGame_Menu;
+ 
+ 	hazardCourse.SetNameAndStatus( L( "GameUI_TrainingRoom" ), L( "StringsList_190" ) );
+ 	hazardCourse.SetPicture( PC_HAZARD_COURSE );
+@@ -206,15 +376,15 @@ void CMenuMain::_Init( void )
+ 	hazardCourse.onReleasedClActive = VoidCb( &CMenuMain::HazardCourseDialogCb );
+ 	hazardCourse.onReleased = VoidCb( &CMenuMain::HazardCourseCb );
+ 
+-	multiPlayer.SetNameAndStatus( L( "GameUI_Multiplayer" ), L( "StringsList_198" ) );
++	multiPlayer.SetNameAndStatus( "Find Servers", NULL );
+ 	multiPlayer.SetPicture( PC_MULTIPLAYER );
+ 	multiPlayer.iFlags |= QMF_NOTIFY;
+-	multiPlayer.onReleased = UI_MultiPlayer_Menu;
++	multiPlayer.onReleased = UI_InternetGames_Menu;
+ 
+-	configuration.SetNameAndStatus( L( "GameUI_Options" ), L( "StringsList_193" ) );
++	configuration.SetNameAndStatus( "Options", NULL );
+ 	configuration.SetPicture( PC_CONFIG );
+ 	configuration.iFlags |= QMF_NOTIFY;
+-	configuration.onReleased = UI_Options_Menu;
++	configuration.onReleased = UI_Controls_Menu;
+ 
+ 	saveRestore.iFlags |= QMF_NOTIFY;
+ 
+@@ -233,7 +403,7 @@ void CMenuMain::_Init( void )
+ 	previews.iFlags |= QMF_NOTIFY;
+ 	SET_EVENT( previews.onReleased, EngFuncs::ShellExecute( MenuStrings[ IDS_MEDIA_PREVIEWURL ], NULL, false ) );
+ 
+-	quit.SetNameAndStatus( L( "GameUI_GameMenu_Quit" ), L( "GameUI_QuitConfirmationText" ) );
++	quit.SetNameAndStatus( "Quit", NULL );
+ 	quit.SetPicture( PC_QUIT );
+ 	quit.iFlags |= QMF_NOTIFY;
+ 	quit.onReleased = VoidCb( &CMenuMain::QuitDialogCb );
+@@ -248,8 +418,17 @@ void CMenuMain::_Init( void )
+ 	minimizeBtn.eFocusAnimation = QM_HIGHLIGHTIFFOCUS;
+ 	minimizeBtn.onReleased.SetCommand( false, "minimize\n" );
+ 
+-	if ( gMenu.m_gameinfo.gamemode == GAME_MULTIPLAYER_ONLY || gMenu.m_gameinfo.startmap[0] == 0 )
+-		newGame.SetGrayed( true );
++	{
++		CMenuPicButton *bar[] = { &multiPlayer, &newGame, &configuration, &resumeGame, &disconnect, &console, &quit };
++		for( CMenuPicButton *b : bar )
++		{
++			b->colorBase = 0xFFE6E9EC;
++			b->colorFocus = 0xFFFF9B14;
++			b->SetCharSize( QM_DEFAULTFONT );
++			b->eTextAlignment = QM_LEFT;
++		}
++	}
++	newGame.SetGrayed( false );
+ 
+ 	if ( gMenu.m_gameinfo.gamemode == GAME_SINGLEPLAYER_ONLY )
+ 		multiPlayer.SetGrayed( true );
+@@ -287,6 +466,10 @@ void CMenuMain::_Init( void )
+ 	dialog.Link( this );
+ 
+ 	AddItem( banner );
++	AddItem( view );
++	AddItem( bgMapBtn );
++	AddItem( bgModelBtn );
++	AddItem( bgWeaponBtn );
+ 	AddItem( console );
+ 	AddItem( disconnect );
+ 	AddItem( resumeGame );
+@@ -378,12 +561,48 @@ void CMenuMain::VidInit( bool connected )
+ 	console.SetCoord( hoffset, yoffset );
+ 	yoffset -= ygap;
+ 
+-	// now figure out what's visible
++	const int leftX = 72, btnW = 240, btnH = 28, stepY = 36;
++	int curY = 676;
++	auto stackUp = [&]( CMenuPicButton &b ) { b.SetRect( leftX, curY, btnW, btnH ); curY -= stepY; };
++
++	stackUp( quit );
++	stackUp( console );
++	stackUp( configuration );
++	stackUp( multiPlayer );
++	stackUp( newGame );
++	if( connected )
++	{
++		if( !single )
++			stackUp( disconnect );
++		stackUp( resumeGame );
++	}
++
++	minimizeBtn.SetRect( 0, 0, 0, 0 );
++	quitButton.SetRect( 0, 0, 0, 0 );
++	minimizeBtn.SetVisibility( false );
++	quitButton.SetVisibility( false );
++
++	bgModelBtn.SetRect( 500, 682, 160, 28 );
++	bgWeaponBtn.SetRect( 668, 682, 136, 28 );
++	bgMapBtn.SetRect( 812, 682, 168, 28 );
++	view.SetRect( 480, 36, 490, 636 );
++	bgMapBtn.SetVisibility( !connected );
++	bgWeaponBtn.SetVisibility( !connected );
++	bgModelBtn.SetVisibility( !connected );
++	view.SetVisibility( !connected );
++	modelDirty = true;
++
+ 	resumeGame.SetVisibility( connected );
+ 	disconnect.SetVisibility( connected && !single );
+-
+-	// they exist in the original and can be mistakenly clicked
+-	newGame.SetVisibility( false );
++	multiPlayer.SetVisibility( true );
++	newGame.SetVisibility( true );
++	configuration.SetVisibility( true );
++	quit.SetVisibility( true );
++	hazardCourse.SetVisibility( false );
++	customGame.SetVisibility( false );
++	readme.SetVisibility( false );
++	previews.SetVisibility( false );
++	saveRestore.SetVisibility( false );
+ 
+ 	if( connected && single )
+ 	{
+@@ -404,8 +623,56 @@ void CMenuMain::_VidInit()
+ 	VidInit( CL_IsActive() );
+ }
+ 
++void CMenuMain::Draw()
++{
++	const float sx = uiStatic.scaleX, sy = uiStatic.scaleY;
++	const int sw = gpGlobals->scrWidth, sh = gpGlobals->scrHeight;
++
++	// Subtle tactical dark gradient vignette on left menu area so text pops against any map
++	UI_FillRect( 0, 0, (int)( 340 * sx ), sh, 0x580C0E12 );
++	UI_FillRect( (int)( ( uiStatic.xOffset + 56 ) * sx ), (int)( ( uiStatic.yOffset + 470 ) * sy ),
++		(int)( 3 * sx ), (int)( 234 * sy ), 0xFFFF9B14 );
++
++	// Counter-Strike title above left menu stack
++	Point titlePt( (int)( ( uiStatic.xOffset + 72 ) * sx ), (int)( ( uiStatic.yOffset + 432 ) * sy ) );
++	Size titleSz( (int)( 300 * sx ), (int)( 28 * sy ) );
++	UI_DrawString( uiStatic.hBigFont, titlePt, titleSz, "COUNTER-STRIKE", 0xFFFFFFFF, (int)( 22 * sy ), QM_LEFT, ETF_NOSIZELIMIT | ETF_FORCECOL | ETF_SHADOW );
++
++	if( !CL_IsActive() )
++	{
++		// VGUI2 dark showcase podium bar behind Agent / Weapon / Map switcher buttons
++		int dockX = (int)( ( uiStatic.xOffset + 490 ) * sx );
++		int dockY = (int)( ( uiStatic.yOffset + 674 ) * sy );
++		int dockW = (int)( 500 * sx );
++		int dockH = (int)( 44 * sy );
++		UI_FillRect( dockX, dockY, dockW, dockH, 0xD8282B30 );
++		UI_FillRect( dockX, dockY, dockW, 1, 0xFF686D73 );
++		UI_FillRect( dockX, dockY + dockH - 1, dockW, 1, 0xFF181A1C );
++	}
++
++	CMenuFramework::Draw();
++}
++
+ void CMenuMain::Think()
+ {
++	static bool bgStarted = false;
++
++	if( CL_IsActive( ))
++	{
++		bgStarted = false;
++	}
++	else if( !bgStarted && EngFuncs::GetCvarFloat( "host_serverstate" ) == 0.0f
++		&& EngFuncs::GetCvarFloat( "cl_background" ) == 0.0f )
++	{
++		bgStarted = true;
++		char cmd[96];
++		snprintf( cmd, sizeof( cmd ), "map_background %s\n", EngFuncs::GetCvarString( "ui_bg_map" ));
++		EngFuncs::ClientCmd( false, cmd );
++	}
++
++	if( modelDirty || ( view.ent && ( !view.ent->model || view.ent->model->type != mod_studio ) ) )
++		ApplyBgModel();
++
+ 	if( gpGlobals->developer )
+ 	{
+ 		if( !console.IsVisible( ))
+diff --git a/menus/PlayerSetup.cpp b/menus/PlayerSetup.cpp
+index 616065d..4fd1475 100644
+--- a/menus/PlayerSetup.cpp
++++ b/menus/PlayerSetup.cpp
+@@ -336,9 +336,12 @@ void CMenuPlayerSetup::UpdateLogo()
+ 			if( !logosModel.IsPng( pos ))
+ 			{
+ 				CBMP *bmpFile = CBMP::LoadFile( filename );
+-				if( bmpFile->GetBitmapHdr()->bitsPerPixel == 8 )
+-					colorable = true;
+-				delete bmpFile;
++				if( bmpFile )
++				{
++					if( bmpFile->GetBitmapHdr()->bitsPerPixel == 8 )
++						colorable = true;
++					delete bmpFile;
++				}
+ 			}
+ 		}
+ 	}
+@@ -369,8 +372,9 @@ void CMenuPlayerSetup::OnColorPickerOk()
+ 
+ void CMenuPlayerSetup::ApplyColorToImagePreview()
+ {
+-	EngFuncs::ProcessImage( view.hPlayerImage, -1,
+-		topColor.GetCurrentValue(), bottomColor.GetCurrentValue() );
++	if( view.hPlayerImage )
++		EngFuncs::ProcessImage( view.hPlayerImage, -1,
++			topColor.GetCurrentValue(), bottomColor.GetCurrentValue() );
+ }
+ 
+ void CMenuPlayerSetup::ApplyColorToLogoPreview()
+@@ -509,10 +513,10 @@ void CMenuPlayerSetup::_Init( void )
+ 	name.szName = L( "GameUI_PlayerName" );
+ 	name.iMaxLength = 32;
+ 	name.LinkCvar( "name" );
+-	name.SetRect( 360, 270, 300, 36 );
++	name.SetRect( 100, 175, 260, 28 );
+ 
+ 	view.iFlags |= addFlags;
+-	view.SetRect( 700, 270, 260, 300 );
++	view.SetRect( 650, 145, 260, 290 );
+ 
+ 	modelsModel.Update();
+ 	if( !modelsModel.GetRows( ))
+@@ -525,7 +529,7 @@ void CMenuPlayerSetup::_Init( void )
+ 		model.Setup( &modelsModel );
+ 		model.LinkCvar( "model", CMenuEditable::CVAR_STRING );
+ 		model.onChanged = VoidCb( &CMenuPlayerSetup::UpdateModel );
+-		model.SetRect( 700, 570 + UI_OUTLINE_WIDTH, 260, 32 );
++		model.SetRect( 650, 445, 260, 28 );
+ 	}
+ 
+ 	topColor.iFlags |= addFlags;
+@@ -534,7 +538,7 @@ void CMenuPlayerSetup::_Init( void )
+ 	topColor.LinkCvar( "topcolor" );
+ 	topColor.onCvarChange = CMenuEditable::WriteCvarCb;
+ 	topColor.onChanged = VoidCb( &CMenuPlayerSetup::ApplyColorToImagePreview );
+-	topColor.SetCoord( 700, 660 );
++	topColor.SetCoord( 650, 515 );
+ 	topColor.size.w = 260;
+ 
+ 	bottomColor.iFlags |= addFlags;
+@@ -542,7 +546,7 @@ void CMenuPlayerSetup::_Init( void )
+ 	bottomColor.LinkCvar( "bottomcolor" );
+ 	bottomColor.onCvarChange = CMenuEditable::WriteCvarCb;
+ 	bottomColor.onChanged = VoidCb( &CMenuPlayerSetup::ApplyColorToImagePreview );;
+-	bottomColor.SetCoord( 700, 700 );
++	bottomColor.SetCoord( 650, 560 );
+ 	bottomColor.size.w = 260;
+ 
+ 	msgBox.SetMessage( L( "Please, choose another player name" ) );
+@@ -567,31 +571,31 @@ void CMenuPlayerSetup::_Init( void )
+ 	showModels.szName = L( "Show 3D preview" );
+ 	showModels.onCvarChange = CMenuEditable::WriteCvarCb;
+ 	showModels.LinkCvar( "ui_showmodels" );
+-	showModels.SetCoord( 77, 230 + m_iBtnsNum * 50 + 5 );
++	showModels.SetCoord( 100, 240 );
+ 
+ 	hiModels.iFlags |= addFlags;
+ 	hiModels.szName = L( "GameUI_HighModels" );
+ 	hiModels.onCvarChange = CMenuEditable::WriteCvarCb;
+ 	hiModels.LinkCvar( "cl_himodels" );
+-	hiModels.SetCoord( 77, showModels.pos.y + 45 );
++	hiModels.SetCoord( 100, 290 );
+ 
+ 	voiceEnable.szName = L( "GameUI_EnableVoice" );
+ 	voiceEnable.onCvarChange = CMenuEditable::WriteCvarCb;
+ 	voiceEnable.LinkCvar( "voice_modenable" ); // unlike engine's voice_enable, this is synchronized with server
+-	voiceEnable.SetCoord( 77, hiModels.pos.y + 45 );
++	voiceEnable.SetCoord( 100, 340 );
+ 
+ 	transmitVolume.szName = L( "GameUI_VoiceTransmitVolume" );
+ 	transmitVolume.onCvarChange = CMenuEditable::WriteCvarCb;
+ 	transmitVolume.Setup( 0, 1, 0.05f );
+ 	transmitVolume.LinkCvar( "voice_transmit_scale" );
+-	transmitVolume.SetCoord( 77, voiceEnable.pos.y + 75 );
++	transmitVolume.SetCoord( 100, 420 );
+ 	transmitVolume.size.w = 300;
+ 
+ 	receiveVolume.szName = L( "GameUI_VoiceReceiveVolume" );
+ 	receiveVolume.onCvarChange = CMenuEditable::WriteCvarCb;
+ 	receiveVolume.Setup( 0, 1, 0.05f );
+ 	receiveVolume.LinkCvar( "voice_scale" );
+-	receiveVolume.SetCoord( 77, transmitVolume.pos.y + 50 );
++	receiveVolume.SetCoord( 100, 490 );
+ 	receiveVolume.size.w = 300;
+ 
+ 	noProprietaryCodecNotice.szName = L( "* Uses Opus Codec.\nOpen, royalty-free, highly versatile audio codec." );
+@@ -610,15 +614,15 @@ void CMenuPlayerSetup::_Init( void )
+ 		else
+ 		{
+ 		logoImage.szName = L( "GameUI_SpraypaintImage" );
+-		logoImage.SetRect( 460, 370, 200, 200 );
++		logoImage.SetRect( 420, 175, 180, 180 );
+ 
+ 		logo.Setup( &logosModel );
+ 		logo.LinkCvar( "cl_logofile", CMenuEditable::CVAR_STRING );
+ 		logo.onChanged = VoidCb( &CMenuPlayerSetup::UpdateLogo );
+-		logo.SetRect( 460, logoImage.pos.y + logoImage.size.h + UI_OUTLINE_WIDTH, 200, 32 );
++		logo.SetRect( 410, 370, 190, 28 );
+ 
+ 		btnChooseColor.szName = L( "Choose logo color" );
+-		btnChooseColor.SetRect( 460, logo.pos.y + logo.size.h + UI_OUTLINE_WIDTH, 200, 32 );
++		btnChooseColor.SetRect( 410, 412, 190, 28 );
+ 		btnChooseColor.onReleased = VoidCb( &CMenuPlayerSetup::ShowColorPicker );
+ 
+ 		colorPickerDlg.Link( this );
+@@ -630,7 +634,6 @@ void CMenuPlayerSetup::_Init( void )
+ 	AddItem( voiceEnable );
+ 	AddItem( transmitVolume );
+ 	AddItem( receiveVolume );
+-	AddItem( noProprietaryCodecNotice );
+ 
+ 	if( !hideLogos )
+ 	{
+diff --git a/menus/ServerBrowser.cpp b/menus/ServerBrowser.cpp
+index f7644af..f0db51d 100644
+--- a/menus/ServerBrowser.cpp
++++ b/menus/ServerBrowser.cpp
+@@ -1187,9 +1187,9 @@ void CMenuServerBrowser::_Init( void )
+ 	gameList.bFramedHintText = true;
+ 	gameList.bAllowSorting = true;
+ 	gameList.onChanged = VoidCb( &CMenuServerBrowser::OnChangeSelectedServer );
+-	gameList.SetSize( -20, 465 );
++	gameList.SetSize( 868, 424 );
+ 
+-	tabSwitch.SetRect( 360, 230, -20, 32 );
++	tabSwitch.SetRect( 78, 88, 480, 28 );
+ 	tabSwitch.AddSwitch( L( "Direct" ));
+ 	tabSwitch.AddSwitch( "NAT", true ); // intentionally not localized; hidden, NAT support deprecated
+ 	tabSwitch.AddSwitch( L( "Favorites" ));
+@@ -1358,15 +1358,15 @@ void CMenuServerBrowser::_VidInit()
+ 
+ 	if( m_bLanOnly )
+ 	{
+-		gameList.SetCoord( 360, 230 );
++		gameList.SetCoord( 78, 122 );
+ 	}
+ 	else
+ 	{
+-		gameList.SetCoord( 360, 230 + tabSwitch.size.h + uiStatic.outlineWidth );
++		gameList.SetCoord( 78, 122 );
+ 	}
+ 
+ 	int x = gameList.pos.x;
+-	int y = gameList.pos.y + gameList.size.h + UI_OUTLINE_WIDTH;
++	int y = 556;
+ 	filterPing.SetCoord( x, y );
+ 	x += filterPing.size.w + 10;
+ 	filterEmpty.SetCoord( x, y );
+diff --git a/menus/VideoModes.cpp b/menus/VideoModes.cpp
+index bb96ec8..c6a690f 100644
+--- a/menus/VideoModes.cpp
++++ b/menus/VideoModes.cpp
+@@ -349,12 +349,12 @@ void CMenuVidModes::_Init( void )
+ 
+ 	banner.SetPicture( ART_BANNER );
+ 
+-	vidList.SetRect( 360, 230, -20, 365 );
++	vidList.SetRect( 400, 140, 540, 450 );
+ 	vidList.SetupColumn( 0, L( "GameUI_Resolution" ), 1.0f );
+ 	vidList.SetModel( &vidListModel );
+ 
+ 	vsync.szName = L( "GameUI_VSync" );
+-	vsync.SetCoord( 360, 670 );
++	vsync.SetCoord( 100, 350 );
+ 	vsync.LinkCvar( "gl_vsync" );
+ 
+ 	testModeMsgBox.SetMessage( testModeMsg );
+@@ -365,7 +365,7 @@ void CMenuVidModes::_Init( void )
+ 	renderersModel.Update();
+ 	renderers.szName = L( "GameUI_Renderer" );
+ 	renderers.Setup( &renderersModel );
+-	renderers.SetRect( 80, 480, 250, 32 );
++	renderers.SetRect( 100, 180, 250, 28 );
+ 	renderers.SetCharSize( QM_SMALLFONT );
+ 	renderers.onCvarGet = VoidCb( &CMenuVidModes::GetRendererConfig );
+ 	renderers.onCvarWrite = VoidCb( &CMenuVidModes::WriteRendererConfig );
+@@ -373,7 +373,7 @@ void CMenuVidModes::_Init( void )
+ 
+ 	windowMode.szName = L( "Window mode" );
+ 	windowMode.Setup( &windowModeModel );
+-	windowMode.SetRect( 80, 550, 250, 32 );
++	windowMode.SetRect( 100, 260, 250, 28 );
+ 	windowMode.SetCharSize( QM_SMALLFONT );
+ 	SET_EVENT_MULTI( windowMode.onChanged,
+ 	{
+diff --git a/menus/VideoOptions.cpp b/menus/VideoOptions.cpp
+index 69dd50a..5c6fcb2 100644
+--- a/menus/VideoOptions.cpp
++++ b/menus/VideoOptions.cpp
+@@ -166,14 +166,14 @@ void CMenuVidOptions::_Init( void )
+ 	banner.SetPicture( ART_BANNER );
+ 
+ 	testImage.iFlags = QMF_INACTIVE;
+-	testImage.SetRect( 390, 225, 480, 450 );
++	testImage.SetRect( 460, 145, 460, 430 );
+ 	testImage.SetPicture( ART_GAMMA );
+ 
+-	int height = 280;
++	int height = 165;
+ 
+ #if LEGACY_VIEWSIZE
+ 	screenSize.szName = L( "Screen size" );
+-	screenSize.SetCoord( 72, height );
++	screenSize.SetCoord( 100, height );
+ 	screenSize.Setup( 30, 120, 10 );
+ 	screenSize.onChanged = CMenuEditable::WriteCvarCb;
+ 
+@@ -181,47 +181,43 @@ void CMenuVidOptions::_Init( void )
+ #endif
+ 
+ 	gammaIntensity.szName = L( "GameUI_Gamma" );
+-	gammaIntensity.SetCoord( 72, height );
++	gammaIntensity.SetCoord( 100, height );
+ 	gammaIntensity.Setup( 0.0, 1.0, 0.025 );
+ 	gammaIntensity.onChanged = VoidCb( &CMenuVidOptions::UpdateConfig );
+ 	gammaIntensity.onCvarGet = VoidCb( &CMenuVidOptions::GetConfig );
+ 	height += 60;
+ 
+-	brightness.SetCoord( 72, height );
++	brightness.SetCoord( 100, height );
+ 	brightness.szName = L( "GameUI_Brightness" );
+ 	brightness.Setup( 0, 1.0, 0.025 );
+ 	brightness.onChanged = VoidCb( &CMenuVidOptions::UpdateConfig );
+ 	brightness.onCvarGet = VoidCb( &CMenuVidOptions::GetConfig );
+ 	height += 60;
+ 
+-	done.szName = L( "GameUI_OK" );
+-	done.SetCoord( 72, height );
+-	done.SetPicture( PC_DONE );
+-	done.onReleased = VoidCb( &CMenuVidOptions::SaveAndPopMenu );
+-	height += 60;
++
+ 
+ 	detailtex.szName = L( "Detail textures" );
+-	detailtex.SetCoord( 72, height );
++	detailtex.SetCoord( 100, height );
+ 	height += 50;
+ 
+ 	vbo.szName = L( "Use VBO" );
+-	vbo.SetCoord( 72, height );
++	vbo.SetCoord( 100, height );
+ 	height += 50;
+ 
+ 	swwater.szName = L( "Water ripples" );
+-	swwater.SetCoord( 72, height );
++	swwater.SetCoord( 100, height );
+ 	height += 50;
+ 
+ 	overbright.szName = L( "Overbrights" );
+-	overbright.SetCoord( 72, height );
++	overbright.SetCoord( 100, height );
+ 	height += 50;
+ 
+ 	filtering.szName = L( "Texture filtering" );
+-	filtering.SetCoord( 72, height );
++	filtering.SetCoord( 100, height );
+ 	height += 50;
+ 
+ 	hudscale.szName = L( "Auto scale HUD" );
+-	hudscale.SetCoord( 72, height );
++	hudscale.SetCoord( 100, height );
+ 	height += 50;
+ 
+ 	msgBox.SetMessage( L( "^1WARNING: This is an experimental option and turning it on might break mods!^7\n\nReload the game or reconnect to the server to apply the settings."));
+@@ -271,7 +267,8 @@ void CMenuVidOptions::_Init( void )
+ 	});
+ 
+ 	AddItem( banner );
+-	AddItem( done );
++	AddButton( "OK", nullptr, PC_OK, VoidCb( &CMenuVidOptions::SaveAndPopMenu ) );
++	AddButton( "Cancel", nullptr, PC_CANCEL, VoidCb( &CMenuVidOptions::Hide ) );
+ #if LEGACY_VIEWSIZE
+ 	AddItem( screenSize );
+ #endif
+diff --git a/menus/client/ClientWindow.cpp b/menus/client/ClientWindow.cpp
+index 7d67022..796dc0e 100644
+--- a/menus/client/ClientWindow.cpp
++++ b/menus/client/ClientWindow.cpp
+@@ -99,7 +99,9 @@ CMenuAction *CClientWindow::AddButton( int key, const char *name, Point pos, CEv
+ 
+ 	act->pos = pos;
+ 	act->onPressed = callback;
+-	act->SetBackground( 0U, PackRGBA( 255, 0, 0, 64 ) );
++	act->SetBackground( 0xE6383C40, 0xFFFF9B14 );
++	act->colorBase = 0xFFE6E9EC;
++	act->colorFocus = 0xFF101010;
+ 	if ( *name == '&' ) // fast hack
+ 		name++;
+ 	act->SetText( name );
+@@ -107,7 +109,7 @@ CMenuAction *CClientWindow::AddButton( int key, const char *name, Point pos, CEv
+ 	act->size = Size( 250, 32 );
+ 	act->bDrawStroke = true;
+ 	act->m_bLimitBySize = true;
+-	act->colorStroke = uiInputTextColor;
++	act->colorStroke = 0xFF686D73;
+ 	act->iStrokeWidth = 1;
+ 	act->eFocusAnimation = QM_HIGHLIGHTIFFOCUS;
+ 	act->eTextAlignment = QM_LEFT;
+diff --git a/model/KbActListModel.h b/model/KbActListModel.h
+index 802936c..c3434d9 100644
+--- a/model/KbActListModel.h
++++ b/model/KbActListModel.h
+@@ -197,7 +197,7 @@ private:
+ 	static void FormatLabel( const char *token, char *out, size_t size )
+ 	{
+ 		const char *text = token[0] == '#' ? L( token ) : token;
+-		snprintf( out, size, "^6%s^7", text );
++		snprintf( out, size, "%s", text );
+ 	}
+ 
+ 	static void FormatKey( int key, char *out, size_t size )
+@@ -211,9 +211,9 @@ private:
+ 			return;
+ 
+ 		if( !strnicmp( s, "MOUSE", 5 ))
+-			snprintf( out, size, "^5%s^7", s );
++			snprintf( out, size, "%s", s );
+ 		else
+-			snprintf( out, size, "^3%s^7", s );
++			snprintf( out, size, "%s", s );
+ 	}
+ };
+ 

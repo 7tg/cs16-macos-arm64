@@ -1,0 +1,24 @@
+diff --git a/src/video/cocoa/SDL_cocoawindow.m b/src/video/cocoa/SDL_cocoawindow.m
+index 51eda933a..06e9be947 100644
+--- a/src/video/cocoa/SDL_cocoawindow.m
++++ b/src/video/cocoa/SDL_cocoawindow.m
+@@ -2590,17 +2590,8 @@ void Cocoa_SetWindowTitle(SDL_VideoDevice *_this, SDL_Window *window)
+ 
+ bool Cocoa_SetWindowIcon(SDL_VideoDevice *_this, SDL_Window *window, SDL_Surface *icon)
+ {
+-    @autoreleasepool {
+-        NSImage *nsimage = Cocoa_CreateImage(icon);
+-
+-        if (nsimage) {
+-            [NSApp setApplicationIconImage:nsimage];
+-
+-            return true;
+-        }
+-
+-        return SDL_SetError("Unable to set the window's icon");
+-    }
++    // Do not override macOS application bundle icon with low-res 32x32 game.tga
++    return true;
+ }
+ 
+ bool Cocoa_SetWindowPosition(SDL_VideoDevice *_this, SDL_Window *window)
