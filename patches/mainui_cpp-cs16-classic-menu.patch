@@ -11,6 +11,19 @@ index 1350664..2392a20 100755
  
  	// trying to load colors.lst
  	UI_ApplyCustomColors ();
+diff --git a/controls/PicButton.cpp b/controls/PicButton.cpp
+index ef9e268..20037d1 100644
+--- a/controls/PicButton.cpp
++++ b/controls/PicButton.cpp
+@@ -308,7 +308,7 @@ void CMenuPicButton::Draw( )
+ 			DrawButton( r, g, b, 255, rects, state );
+ 		}
+ 	}
+-	else if( !uiStatic.lowmemory )
++	else if( false ) // flat text, no WON-style glow
+ 	{
+ 		const uint heavy_blur_flags = ETF_NOSIZELIMIT | ETF_FORCECOL;
+ 		const uint light_blur_flags = ETF_NOSIZELIMIT | ETF_FORCECOL | ETF_ADDITIVE;
 diff --git a/font/FontManager.cpp b/font/FontManager.cpp
 index 971cab5..40d4932 100644
 --- a/font/FontManager.cpp
@@ -24,16 +37,152 @@ index 971cab5..40d4932 100644
  #define DEFAULT_CONFONT  "Tahoma"
  #define DEFAULT_WEIGHT   500
  
-diff --git a/menus/ServerBrowser.cpp b/menus/ServerBrowser.cpp
-index f7644af..fee8b17 100644
---- a/menus/ServerBrowser.cpp
-+++ b/menus/ServerBrowser.cpp
-@@ -1081,7 +1081,7 @@ void CMenuServerBrowser::AddServer( void )
- 		}
- 	}
+diff --git a/menus/Main.cpp b/menus/Main.cpp
+index 06f0bab..15fee95 100644
+--- a/menus/Main.cpp
++++ b/menus/Main.cpp
+@@ -49,6 +49,7 @@ private:
+ 	void _Init() override;
+ 	void _VidInit( ) override;
+ 	void Think() override;
++	void Draw() override;
  
--	favlist_entry_t entry( addressField.GetBuffer(), proto, false );
-+	favlist_entry_t entry( addressField.GetBuffer(), proto, true ); // false was never saved (SaveServerListToFile skips it)
- 	favoritesList.AddToTail( entry );
+ 	void VidInit(bool connected);
  
- 	int previousTab = tabSwitch.GetState();
+@@ -175,7 +176,7 @@ void CMenuMain::_Init( void )
+ 	else bCustomGame = false;
+ 
+ 	// console
+-	console.SetNameAndStatus( L( "GameUI_Console" ), NULL );
++	console.SetNameAndStatus( "CONSOLE", NULL );
+ 	console.iFlags |= QMF_NOTIFY;
+ 	console.SetPicture( PC_CONSOLE );
+ 	console.SetVisibility( gpGlobals->developer );
+@@ -185,20 +186,20 @@ void CMenuMain::_Init( void )
+ 		EngFuncs::KEY_SetDest( KEY_CONSOLE );
+ 	});
+ 
+-	resumeGame.SetNameAndStatus( L( "GameUI_GameMenu_ResumeGame" ), L( "StringsList_188" ) );
++	resumeGame.SetNameAndStatus( "RESUME", NULL );
+ 	resumeGame.SetPicture( PC_RESUME_GAME );
+ 	resumeGame.iFlags |= QMF_NOTIFY;
+ 	resumeGame.onReleased = UI_CloseMenu;
+ 
+-	disconnect.SetNameAndStatus( L( "GameUI_GameMenu_Disconnect" ), L( "Disconnect from server." ) );
++	disconnect.SetNameAndStatus( "DISCONNECT", NULL );
+ 	disconnect.SetPicture( PC_DISCONNECT );
+ 	disconnect.iFlags |= QMF_NOTIFY;
+ 	disconnect.onReleased = VoidCb( &CMenuMain::DisconnectDialogCb );
+ 
+-	newGame.SetNameAndStatus( L( "GameUI_NewGame" ), L( "StringsList_189" ) );
++	newGame.SetNameAndStatus( "CREATE", NULL );
+ 	newGame.SetPicture( PC_NEW_GAME );
+ 	newGame.iFlags |= QMF_NOTIFY;
+-	newGame.onReleased = UI_NewGame_Menu;
++	newGame.onReleased = UI_CreateGame_Menu;
+ 
+ 	hazardCourse.SetNameAndStatus( L( "GameUI_TrainingRoom" ), L( "StringsList_190" ) );
+ 	hazardCourse.SetPicture( PC_HAZARD_COURSE );
+@@ -206,12 +207,12 @@ void CMenuMain::_Init( void )
+ 	hazardCourse.onReleasedClActive = VoidCb( &CMenuMain::HazardCourseDialogCb );
+ 	hazardCourse.onReleased = VoidCb( &CMenuMain::HazardCourseCb );
+ 
+-	multiPlayer.SetNameAndStatus( L( "GameUI_Multiplayer" ), L( "StringsList_198" ) );
++	multiPlayer.SetNameAndStatus( "PLAY", NULL );
+ 	multiPlayer.SetPicture( PC_MULTIPLAYER );
+ 	multiPlayer.iFlags |= QMF_NOTIFY;
+ 	multiPlayer.onReleased = UI_MultiPlayer_Menu;
+ 
+-	configuration.SetNameAndStatus( L( "GameUI_Options" ), L( "StringsList_193" ) );
++	configuration.SetNameAndStatus( "SETTINGS", NULL );
+ 	configuration.SetPicture( PC_CONFIG );
+ 	configuration.iFlags |= QMF_NOTIFY;
+ 	configuration.onReleased = UI_Options_Menu;
+@@ -233,7 +234,7 @@ void CMenuMain::_Init( void )
+ 	previews.iFlags |= QMF_NOTIFY;
+ 	SET_EVENT( previews.onReleased, EngFuncs::ShellExecute( MenuStrings[ IDS_MEDIA_PREVIEWURL ], NULL, false ) );
+ 
+-	quit.SetNameAndStatus( L( "GameUI_GameMenu_Quit" ), L( "GameUI_QuitConfirmationText" ) );
++	quit.SetNameAndStatus( "QUIT", NULL );
+ 	quit.SetPicture( PC_QUIT );
+ 	quit.iFlags |= QMF_NOTIFY;
+ 	quit.onReleased = VoidCb( &CMenuMain::QuitDialogCb );
+@@ -248,8 +249,18 @@ void CMenuMain::_Init( void )
+ 	minimizeBtn.eFocusAnimation = QM_HIGHLIGHTIFFOCUS;
+ 	minimizeBtn.onReleased.SetCommand( false, "minimize\n" );
+ 
+-	if ( gMenu.m_gameinfo.gamemode == GAME_MULTIPLAYER_ONLY || gMenu.m_gameinfo.startmap[0] == 0 )
+-		newGame.SetGrayed( true );
++	{
++		CMenuPicButton *bar[] = { &multiPlayer, &newGame, &configuration, &resumeGame, &disconnect, &console, &quit };
++		for( CMenuPicButton *b : bar )
++		{
++			b->colorBase = 0xFFD0D4D8;
++			b->colorFocus = 0xFFFFFFFF;
++			b->SetCharSize( QM_DEFAULTFONT );
++			b->eTextAlignment = QM_CENTER;
++		}
++	}
++
++	newGame.SetGrayed( false );
+ 
+ 	if ( gMenu.m_gameinfo.gamemode == GAME_SINGLEPLAYER_ONLY )
+ 		multiPlayer.SetGrayed( true );
+@@ -378,12 +389,37 @@ void CMenuMain::VidInit( bool connected )
+ 	console.SetCoord( hoffset, yoffset );
+ 	yoffset -= ygap;
+ 
+-	// now figure out what's visible
++	// CS:GO-style top navigation bar
++	const int barH = 56, btnY = 14, btnH = 28, gapX = 8;
++	int x = 40;
++	auto place = [&]( CMenuPicButton &b, int w ) { b.SetRect( x, btnY, w, btnH ); x += w + gapX; };
++
++	place( multiPlayer, 90 );
++	place( newGame, 120 );
++	place( configuration, 140 );
++	if( connected )
++	{
++		place( resumeGame, 120 );
++		if( !single )
++			place( disconnect, 170 );
++	}
++	place( console, 130 );
++	quit.SetRect( uiStatic.width - 72 - 100, btnY, 90, btnH );
++	minimizeBtn.SetRect( uiStatic.width - 72, 12, 32, 32 );
++	quitButton.SetRect( uiStatic.width - 36, 12, 32, 32 );
++	(void)barH;
++
+ 	resumeGame.SetVisibility( connected );
+ 	disconnect.SetVisibility( connected && !single );
+-
+-	// they exist in the original and can be mistakenly clicked
+-	newGame.SetVisibility( false );
++	multiPlayer.SetVisibility( true );
++	newGame.SetVisibility( true );
++	configuration.SetVisibility( true );
++	quit.SetVisibility( true );
++	hazardCourse.SetVisibility( false );
++	customGame.SetVisibility( false );
++	readme.SetVisibility( false );
++	previews.SetVisibility( false );
++	saveRestore.SetVisibility( false );
+ 
+ 	if( connected && single )
+ 	{
+@@ -404,6 +440,15 @@ void CMenuMain::_VidInit()
+ 	VidInit( CL_IsActive() );
+ }
+ 
++void CMenuMain::Draw()
++{
++	const int sw = gpGlobals->scrWidth, sh = gpGlobals->scrHeight;
++	UI_FillRect( 0, 0, sw, sh, 0x66000000 );
++	UI_FillRect( 0, 0, sw, (int)( 56 * uiStatic.scaleY ), 0xE0101418 );
++	UI_FillRect( 0, (int)( 56 * uiStatic.scaleY ), sw, Q_max( 1, (int)( 2 * uiStatic.scaleY )), 0xFF4A90E2 );
++	CMenuFramework::Draw();
++}
++
+ void CMenuMain::Think()
+ {
+ 	if( gpGlobals->developer )
